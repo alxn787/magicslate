@@ -103,16 +103,25 @@ app.post('/room',middleware, async(req:Request,res:Response)=>{
     }
     const { roomName } = parseddata.data;
     const userId = res.userId;
-    const room = await prisma.room.create({
-        data: {
-            slug: roomName,
-            adminId: userId
-        }
-    })
-    res.json({
-        roomId: room.id
-    })
-    return;
+
+    try{
+        const room = await prisma.room.create({
+            data: {
+                slug: roomName,
+                adminId: userId
+            }
+        })
+        res.json({
+            roomId: room.id
+        })
+        return;
+    }catch(error){
+        res.json({
+            error: "room already exists"
+        })
+        return;
+    }
+   
 })
 
 app.listen(3001);

@@ -29,10 +29,9 @@ export function middleware(req:Request,res:Response,next:NextFunction){
         res.status(401).send("Unauthorized");
         return;
     }
-    
+
     if((decoded as JwtPayload).userId){
         res.userId = (decoded as JwtPayload).userId;
-        console.log(res.userId);
         next();
     }else{
         res.status(401).send("Unauthorized");
