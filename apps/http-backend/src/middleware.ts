@@ -11,14 +11,32 @@ declare global{
 }
 
 export function middleware(req:Request,res:Response,next:NextFunction){
+    const token = req.headers['token'];
     
-    const token = req.headers['authorization']??"";
-    const decoded = jwt.verify(token,JWT_SECRET);
+    if (!token || (Array.isArray(token) && token.length === 0)) {
+        res.status(401).send("Unauthorized");
+        return;
+    }
+
+    const tokenStr = Array.isArray(token) ? token[0] : token;
+    if(!tokenStr){ 
+        res.status(401).send("Unauthorized");
+        return;
+    }
+    
+    const decoded = jwt.verify(tokenStr,JWT_SECRET);
+    if(!decoded){
+        res.status(401).send("Unauthorized");
+        return;
+    }
+    
     if((decoded as JwtPayload).userId){
         res.userId = (decoded as JwtPayload).userId;
+        console.log(res.userId);
         next();
     }else{
         res.status(401).send("Unauthorized");
         return;
     }
+    
 }
