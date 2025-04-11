@@ -48,3 +48,7 @@ a {
     display: unset;
   }
 }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
