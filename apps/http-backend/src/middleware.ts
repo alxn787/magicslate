@@ -11,14 +11,13 @@ declare global{
 }
 
 export function middleware(req:Request,res:Response,next:NextFunction){
-    const token = req.headers['token'];
+    const headerToken = req.headers['token'];
+    const bodyToken = req.body.token;
     
-    if (!token || (Array.isArray(token) && token.length === 0)) {
-        res.status(401).send("Unauthorized");
-        return;
-    }
-
-    const tokenStr = Array.isArray(token) ? token[0] : token;
+    const tokenStr = Array.isArray(headerToken)
+    ? headerToken[0]
+    : headerToken || bodyToken;
+    
     if(!tokenStr){ 
         res.status(401).send("Unauthorized");
         return;

@@ -14,3 +14,5 @@ export const signInSchema = z.object({
 export const createRoomSchema = z.object({
     roomName: z.string(),
 });
+
+export const  BACKEND_URL = 'http://localhost:3001';

@@ -148,4 +148,38 @@ app.get('/room/:slug', middleware, async(req:Request,res:Response)=>{
     })
 }) 
 
+app.post('/auth/google', async (req: Request, res: Response) => {
+       try{
+        const { email, name } = req.body;
+        console.log(email,name);
+        let user = await prisma.user.findFirst({
+            where:{
+                email
+            }
+        })
+
+        if(!user){
+
+            user = await prisma.user.create({
+                data: {
+                    email: email,
+                    password: "",
+                    name: name
+                }
+            })
+        }
+        const token = jwt.sign({
+            userId: user.id
+        },JWT_SECRET);
+        res.json({
+            token: token
+        })
+        }catch(e){
+            res.json({
+                error: e
+            })
+       }
+});
+  
+
 app.listen(3001);
