@@ -2,9 +2,7 @@ import express, { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { middleware } from './middleware';
 import { JWT_SECRET } from '@repo/backend-common/config';
-import { createUserSchema, signInSchema } from '@repo/common/types';
 import prisma from '@repo/db/client';
-import bcrypt from 'bcrypt';
 import cors from 'cors';
 
 const app = express();
@@ -49,31 +47,45 @@ app.post('/room',middleware, async(req:Request,res:Response)=>{
    
 })
 
-app.get('/chats/:roomId', middleware, async(req:Request,res:Response)=>{
+app.post('/chats/:roomId', middleware, async(req:Request,res:Response)=>{
     const roomId = req.params.roomId;
-    const messages = await prisma.chat.findMany({
-        where: {
-            roomId: roomId
-        },
-        take: 50
-    })
-    
-    res.json({
-        messages: messages
-    })
+    try{
+        const messages = await prisma.chat.findMany({
+            where: {
+                roomId: roomId
+            },
+            take: 50
+        })
+        
+        res.json({
+            messages: messages
+        })
+    }catch(e){
+        console.log(e);
+        res.json({
+            error: e
+        })
+    }
 }) 
 
-app.get('/room/:slug', middleware, async(req:Request,res:Response)=>{
+app.post('/room/:slug', middleware, async(req:Request,res:Response)=>{
     const slug = req.params.slug;
-    const room = await prisma.room.findFirst({
-        where: {
-            slug: slug
-        }
-    })
-    
-    res.json({
-        room
-    })
+    try{
+        const room = await prisma.room.findFirst({
+            where: {
+                slug: slug
+            }
+        })
+        const roomId = room?.id
+        res.json({
+            roomId
+        })
+    }catch(e){
+        console.log(e);
+        res.json({
+            error: e
+        })
+    }
 }) 
 
 app.post('/auth/google', async (req: Request, res: Response) => {

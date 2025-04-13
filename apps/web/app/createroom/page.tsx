@@ -1,6 +1,7 @@
 'use client';
 import { useSession } from "next-auth/react";
 import RoomInput from "../components/RoomInput";
+import { JoinRoom } from "../components/JoinRoom";
 
 export default function CreateRoom() {
     const session = useSession();
@@ -10,6 +11,7 @@ export default function CreateRoom() {
       <h1>Create Room</h1>
       <RoomInput/>
       {token}
+      <JoinRoom/>
     </div>
   );
 }

@@ -23,6 +23,7 @@ export const authConfig = {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       }),
     ],
+    secret: process.env.NEXTAUTH_SECRET??"secret",
     callbacks: {
       async jwt({ token, account, profile }:any) {
         if (account && profile?.email) {
@@ -42,4 +43,4 @@ export const authConfig = {
         return session;
       },
     },
-  }
+}

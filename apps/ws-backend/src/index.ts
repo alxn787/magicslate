@@ -8,6 +8,7 @@ const wss = new WebSocketServer({ port: 8080 });
 function checkUser(token:string):string | null{
 
     try{
+        console.log(token);
         const decoded = jwt.verify(token,JWT_SECRET);
 
     if(typeof(decoded) == "string"){
@@ -16,6 +17,7 @@ function checkUser(token:string):string | null{
     if(!decoded || !decoded.userId){
         return null;
     }
+    console.log(decoded);
     return (decoded as JwtPayload).userId;
 
     }catch(e){
@@ -56,6 +58,7 @@ wss.on("connection",function connection(ws,request) {
             if(parsedData.type == 'join_room'){
                 const user = users.find(x => x.ws == ws);
                 user?.rooms.push(parsedData.roomId);
+                console.log(user?.rooms);
             }
 
             if(parsedData.type == 'leave_room'){
