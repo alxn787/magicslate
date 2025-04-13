@@ -1,39 +1,49 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useSocket } from "../../hooks/useSocket";
+import { InitDraw } from "../draw";
 
 export function ChatroomCLient({ messages, id }: { messages: string[], id: string }) {
     const { socket, loading } = useSocket();
     const [chats, setChats] = useState(messages);  
     const [currentMessage, setCurrentMessage] = useState("");
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    // useEffect(() => {
+    //     if (socket && !loading) {
+    //         socket.send(JSON.stringify({
+    //             type: 'join_room',
+    //             roomId: id
+    //         }));
+    
+    //         const handleMessage = (event: MessageEvent) => {
+    //             const data = JSON.parse(event.data);
+    //             if (data.type === 'chat') {
+    //                 setChats(prevChats => [...prevChats, data.message]);
+    //             }
+    //         };
+    
+    //         socket.addEventListener("message", handleMessage);
+    
+    //         return () => {
+    //             socket.removeEventListener("message", handleMessage);
+    //         };
+    //     }
+    // }, [socket, loading, id]);
 
     useEffect(() => {
-        if (socket && !loading) {
-            socket.send(JSON.stringify({
-                type: 'join_room',
-                roomId: id
-            }));
-    
-            const handleMessage = (event: MessageEvent) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'chat') {
-                    setChats(prevChats => [...prevChats, data.message]);
-                }
-            };
-    
-            socket.addEventListener("message", handleMessage);
-    
-            return () => {
-                socket.removeEventListener("message", handleMessage);
-            };
+        if(canvasRef.current){
+            const canvas = canvasRef.current;
+            
+
+            InitDraw( canvas);
         }
-    }, [socket, loading, id]);
-    
+    }, [canvasRef]);
 
     return (
-        <div>
-            {chats.map((message, index) => (
+        <div className="w-full h-full">
+            {/* {chats.map((message, index) => (
                 <div key={index}>
                     {message}
                 </div>
@@ -51,7 +61,9 @@ export function ChatroomCLient({ messages, id }: { messages: string[], id: strin
             setCurrentMessage("");  
             }}>
                 Send message
-            </button>
+            </button> */}
+
+            <canvas className="w-screen h-screen" ref={canvasRef}></canvas>
         </div>
     );
 }
