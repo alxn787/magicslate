@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./Iconbutton";
-import { Circle, Pencil, RectangleHorizontal } from "lucide-react";
+import { Circle, Pencil, RectangleHorizontal, ZoomIn, ZoomOut } from "lucide-react";
 import { Game } from "../draw/game";
 
-export type Tool = "circle" | "rect" | "pencil";
+export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut";
 
 export default function MainCanvas({
   roomId,
@@ -96,6 +96,16 @@ function TopBar({
         icon={<Circle className="text-white" />}
         onClick={() => setSelectedTool("circle")}
       />
+      <IconButton
+        activated={selectedTool === "zoomIn"}
+        icon={<ZoomIn className="text-white" />}
+        onClick={() => setSelectedTool("zoomIn")}
+      />
+      <IconButton
+        activated={selectedTool === "zoomOut"}
+        icon={<ZoomOut className="text-white" />}
+        onClick={() => setSelectedTool("zoomOut")}
+        />
     </div>
   );
 }
