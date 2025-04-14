@@ -2,6 +2,7 @@
 import { BACKEND_URL } from "@repo/common/types";
 import axios from "axios";
 import { clear } from "console";
+import { getExistingShapes } from "./http";
 
 type Shape =  {
     type:"rect";
@@ -21,7 +22,7 @@ export async function InitDraw ( canvas:HTMLCanvasElement, roomId:string,token:s
     let existingShapes:Shape[] = await getExistingShapes(roomId,token);
 
     const ctx = canvas.getContext("2d");
-            if(!ctx) return;
+    if(!ctx) return;
 
     socket.onmessage = (event) => {
         const message = JSON.parse(event.data);
@@ -35,7 +36,7 @@ export async function InitDraw ( canvas:HTMLCanvasElement, roomId:string,token:s
     const resizeCanvas = () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-      };
+    };
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
 
@@ -84,7 +85,7 @@ export async function InitDraw ( canvas:HTMLCanvasElement, roomId:string,token:s
     
 }
 
-function ClearCanvas(existingShapes:Shape[], canvas:HTMLCanvasElement, ctx:CanvasRenderingContext2D){
+export function ClearCanvas(existingShapes:Shape[], canvas:HTMLCanvasElement, ctx:CanvasRenderingContext2D){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "rgba(0,0,0)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -97,15 +98,3 @@ function ClearCanvas(existingShapes:Shape[], canvas:HTMLCanvasElement, ctx:Canva
     }) 
 }
 
-async function getExistingShapes(roomId:string,token:string){
-    const res = await axios.post(`${BACKEND_URL}/chats/${roomId}`,
-        {token:token}
-    )
-    const messages = res.data.messages
-    const shapes = messages.map((x:{message:string})=>{
-        const messageData = JSON.parse(x.message);
-        return messageData;
-    })
-    console.log(shapes);
-    return shapes;
-}

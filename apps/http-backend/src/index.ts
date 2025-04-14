@@ -54,7 +54,7 @@ app.post('/chats/:roomId', middleware, async(req:Request,res:Response)=>{
             where: {
                 roomId: roomId
             },
-            take: 50
+            take: 1000
         })
         
         res.json({

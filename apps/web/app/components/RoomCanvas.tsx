@@ -18,7 +18,7 @@ export function CanvasClient({roomId,token} : {roomId:string, token:string}){
        }
     },[]);
 
-    if(!socket) return <div>Loading...</div>;
+    if(!socket) return <div className="bg-black h-screen w-screen text-white">Loading...</div>;
 
     return (
         <div className="w-full h-full">

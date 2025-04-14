@@ -14,6 +14,7 @@
     "@repo/common": "workspace:*",
     "@repo/ui": "workspace:*",
     "axios": "^1.8.4",
+    "lucide-react": "^0.488.0",
     "next": "^15.2.1",
     "next-auth": "^4.24.11",
     "react": "^19.1.0",

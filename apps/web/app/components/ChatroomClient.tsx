@@ -10,27 +10,27 @@ export function ChatroomCLient({ messages, id }: { messages: string[], id: strin
     const [currentMessage, setCurrentMessage] = useState("");
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // useEffect(() => {
-    //     if (socket && !loading) {
-    //         socket.send(JSON.stringify({
-    //             type: 'join_room',
-    //             roomId: id
-    //         }));
+    useEffect(() => {
+        if (socket && !loading) {
+            socket.send(JSON.stringify({
+                type: 'join_room',
+                roomId: id
+            }));
     
-    //         const handleMessage = (event: MessageEvent) => {
-    //             const data = JSON.parse(event.data);
-    //             if (data.type === 'chat') {
-    //                 setChats(prevChats => [...prevChats, data.message]);
-    //             }
-    //         };
+            const handleMessage = (event: MessageEvent) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'chat') {
+                    setChats(prevChats => [...prevChats, data.message]);
+                }
+            };
     
-    //         socket.addEventListener("message", handleMessage);
+            socket.addEventListener("message", handleMessage);
     
-    //         return () => {
-    //             socket.removeEventListener("message", handleMessage);
-    //         };
-    //     }
-    // }, [socket, loading, id]);
+            return () => {
+                socket.removeEventListener("message", handleMessage);
+            };
+        }
+    }, [socket, loading, id]);
 
     useEffect(() => {
         if(canvasRef.current){
@@ -43,7 +43,7 @@ export function ChatroomCLient({ messages, id }: { messages: string[], id: strin
 
     return (
         <div className="w-full h-full">
-            {/* {chats.map((message, index) => (
+            {chats.map((message, index) => (
                 <div key={index}>
                     {message}
                 </div>
@@ -61,7 +61,7 @@ export function ChatroomCLient({ messages, id }: { messages: string[], id: strin
             setCurrentMessage("");  
             }}>
                 Send message
-            </button> */}
+            </button>
 
             <canvas className="w-screen h-screen" ref={canvasRef}></canvas>
         </div>
