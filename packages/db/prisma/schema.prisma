@@ -28,7 +28,7 @@ model Room {xd
 
 model chat {
   id        Int       @id @default(autoincrement())
-  message   String
+  message   Json
   userId    String
   user      User      @relation(fields: [userId], references: [id])
   room      Room      @relation(fields: [roomId], references: [id])

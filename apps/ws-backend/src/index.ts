@@ -88,6 +88,63 @@ wss.on("connection",function connection(ws,request) {
                     }
                 })
             }
+
+            if(parsedData.type == 'clearslate'){
+                const roomId = parsedData.roomId;
+                await prisma.chat.deleteMany({
+                    where:{
+                        roomId: roomId
+                    }
+                })
+                users.forEach(user=>{
+                    if(user.rooms.includes(roomId)){
+                        user.ws.send(JSON.stringify({
+                            type: 'clearslate',
+                            roomId:roomId
+                        }))
+                    }
+                })
+            }
+
+            if(parsedData.type == 'updateShape'){
+                const roomId = parsedData.roomId;
+                const Shape = parsedData.shape;
+                const oldShape = JSON.stringify(parsedData.oldShape);
+                console.log(Shape);
+               
+              
+                users.forEach(user=>{
+                    if(user.rooms.includes(roomId)){
+                        user.ws.send(JSON.stringify({
+                            type: 'updateShape',
+                            shape: Shape,
+                            roomId:roomId
+                        }))
+                    }
+                })
+            }
+
+            if(parsedData.type == 'updatedShape'){
+                const roomId = parsedData.roomId;
+                const Shape = parsedData.shape;
+                const oldShape = JSON.stringify(parsedData.oldShape);
+                console.log(Shape);
+               
+              
+                // users.forEach(user=>{
+                //     if(user.rooms.includes(roomId)){
+                //         user.ws.send(JSON.stringify({
+                //             type: 'updatedShape',
+                //             shape: Shape,
+                //             roomId:roomId
+                //         }))
+                //     }
+                // })
+            }
+
+
+            
+
         }catch(e){
             console.log(e);
         }

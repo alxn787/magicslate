@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./Iconbutton";
-import { Circle, Pencil, RectangleHorizontal, ZoomIn, ZoomOut } from "lucide-react";
+import { Circle, Pencil, Pointer, RectangleHorizontal, Trash, ZoomIn, ZoomOut } from "lucide-react";
 import { Game } from "../draw/game";
+import { g } from "framer-motion/client";
 
-export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut";
+export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut" | "select";
 
 export default function MainCanvas({
   roomId,
@@ -67,17 +68,22 @@ export default function MainCanvas({
   return (
     <div className="bg-black">
       <canvas ref={canvasRef} />
-      <TopBar selectedTool={selectedTool} setSelectedTool={setSelectedTool} />
+      <TopBar selectedTool={selectedTool} setSelectedTool={setSelectedTool} game ={game} />
     </div>
   );
+}
+function Clearstate({ game }: { game: Game }) {
+  game.clearSlate();
 }
 
 function TopBar({
   selectedTool,
   setSelectedTool,
+  game
 }: {
   selectedTool: Tool;
   setSelectedTool: (s: Tool) => void;
+  game: Game | undefined;
 }) {
   return (
     <div className="flex justify-start gap-2 fixed top-10 left-10 z-10">
@@ -106,6 +112,16 @@ function TopBar({
         icon={<ZoomOut className="text-white" />}
         onClick={() => setSelectedTool("zoomOut")}
         />
+        <IconButton
+        activated={selectedTool === "circle"}
+        icon={<Trash className="text-white" />}
+        onClick={() =>game?.clearSlate() }
+        />
+        <IconButton
+          activated={selectedTool === "select"}
+          icon={<Pointer className="text-white" />}
+          onClick={() => setSelectedTool("select")}
+          />
     </div>
   );
 }
