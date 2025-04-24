@@ -40,7 +40,6 @@ export class Game{
     private pencilLineWidth: number = 1;
     private scale = 1;
     
-    // Selection and moving properties
     private selectedShape: Shape | null = null;
     private isMoving: boolean = false;
     private moveOffsetX: number = 0;
@@ -291,9 +290,7 @@ export class Game{
         return Math.sqrt(dx * dx + dy * dy);
     }
     
-    // Find the shape at given coordinates
     findShapeAt(x: number, y: number): Shape | null {
-        // Search in reverse order to select the top-most shape
         for (let i = this.existingShapes.length - 1; i >= 0; i--) {
             const shape = this.existingShapes[i];
             if(!shape)return null;
@@ -386,7 +383,11 @@ export class Game{
         
         if (this.selectedTool === "select") {
             // End moving operation
+            const index = this.existingShapes.findIndex(x => x.id === this.selectedShape?.id);
+            if(!this.selectedShape)return;
+            this.existingShapes[index] = this.selectedShape;
             this.isMoving = false;
+            this.ClearCanvas();
             return;
         }
         
@@ -452,16 +453,15 @@ export class Game{
         if (!this.clicked) return;
         
         if (this.selectedTool === "select" && this.isMoving && this.selectedShape) {
-            // Calculate the movement delta
+
             const dx = e.clientX - this.startX;
             const dy = e.clientY - this.startY;
-            
-            // Move the selected shape
+
             this.moveSelectedShape(dx, dy);
-            
-            // Update start position for next move
+
             this.startX = e.clientX;
             this.startY = e.clientY;
+            this.ClearCanvas();
             return;
         }
         

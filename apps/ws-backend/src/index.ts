@@ -58,7 +58,7 @@ wss.on("connection",function connection(ws,request) {
             if(parsedData.type == 'join_room'){
                 const user = users.find(x => x.ws == ws);
                 user?.rooms.push(parsedData.roomId);
-                console.log(user?.rooms);
+                console.log(user);
             }
 
             if(parsedData.type == 'leave_room'){
@@ -67,6 +67,8 @@ wss.on("connection",function connection(ws,request) {
             }
 
             if(parsedData.type == 'chat'){
+                const user = users.find(x => x.ws == ws);
+                console.log(user);
                 const roomId = parsedData.roomId;
                 const message = parsedData.message;
 
@@ -79,7 +81,7 @@ wss.on("connection",function connection(ws,request) {
                 })
 
                 users.forEach(user=>{
-                    if(user.rooms.includes(roomId)){
+                    if(user.rooms.includes(roomId) && user.userId != userId){
                         user.ws.send(JSON.stringify({
                             type: 'chat',
                             message: message,
@@ -109,12 +111,9 @@ wss.on("connection",function connection(ws,request) {
             if(parsedData.type == 'updateShape'){
                 const roomId = parsedData.roomId;
                 const Shape = parsedData.shape;
-                const oldShape = JSON.stringify(parsedData.oldShape);
-                console.log(Shape);
-               
               
                 users.forEach(user=>{
-                    if(user.rooms.includes(roomId)){
+                    if(user.rooms.includes(roomId) && user.userId != userId){
                         user.ws.send(JSON.stringify({
                             type: 'updateShape',
                             shape: Shape,
@@ -127,23 +126,10 @@ wss.on("connection",function connection(ws,request) {
             if(parsedData.type == 'updatedShape'){
                 const roomId = parsedData.roomId;
                 const Shape = parsedData.shape;
-                const oldShape = JSON.stringify(parsedData.oldShape);
                 console.log(Shape);
                
               
-                // users.forEach(user=>{
-                //     if(user.rooms.includes(roomId)){
-                //         user.ws.send(JSON.stringify({
-                //             type: 'updatedShape',
-                //             shape: Shape,
-                //             roomId:roomId
-                //         }))
-                //     }
-                // })
             }
-
-
-            
 
         }catch(e){
             console.log(e);

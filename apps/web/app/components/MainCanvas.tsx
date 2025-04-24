@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./Iconbutton";
 import { Circle, Pencil, Pointer, RectangleHorizontal, Trash, ZoomIn, ZoomOut } from "lucide-react";
 import { Game } from "../draw/game";
-import { g } from "framer-motion/client";
 
 export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut" | "select";
 
