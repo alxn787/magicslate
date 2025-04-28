@@ -5,7 +5,7 @@ import { getExistingShapes } from "./http";
 type Shape =  {
     type:"rect";
     x:number;
-    y:number;
+    y:number; 
     width:number;
     height:number;
     id:string;
@@ -81,13 +81,13 @@ export class Game{
 
     zoomIn() {
         this.scale *= 1.2;
-        if (this.scale > 10) this.scale = 10; // Limit max zoom
+        if (this.scale > 10) this.scale = 10; 
         this.ClearCanvas();
     }
     
     zoomOut() {
         this.scale /= 1.2;
-        if (this.scale < 0.1) this.scale = 0.1; // Limit min zoom
+        if (this.scale < 0.1) this.scale = 0.1; 
         this.ClearCanvas();
     }
     
