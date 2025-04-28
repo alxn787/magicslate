@@ -193,8 +193,7 @@ export class Game{
         });
     }
     
-    // Draw selection box around the selected shape
-    drawSelectionBox(shape: Shape) {
+    drawSelectionBox(shape: Shape): void {
         this.ctx.strokeStyle = "rgba(0,255,255,0.8)";
         this.ctx.lineWidth = 2;
         this.ctx.setLineDash([5, 5]);
@@ -219,6 +218,7 @@ export class Game{
                 maxY = Math.max(maxY, point.y);
             }
             
+            // Draw the bounding rectangle for pencil points
             this.ctx.strokeRect(minX - 5, minY - 5, maxX - minX + 10, maxY - minY + 10);
         }
         
@@ -227,28 +227,44 @@ export class Game{
     }
     
     // Check if a point is inside a shape
+    // Fix for isPointInShape method with pencil tool
     isPointInShape(x: number, y: number, shape: Shape): boolean {
         if (shape.type === "rect") {
             return x >= shape.x && x <= shape.x + shape.width && 
-                   y >= shape.y && y <= shape.y + shape.height;
+                y >= shape.y && y <= shape.y + shape.height;
         } else if (shape.type === "circle") {
             const dx = x - shape.centerX;
             const dy = y - shape.centerY;
             return dx * dx + dy * dy <= shape.radius * shape.radius;
-        } else if (shape.type === "pencil") {
-            // For pencil, check if the point is near any line segment
-            const tolerance = 5; // Pixel tolerance for selection
+        } else if (shape.type === "pencil" && shape.points && shape.points.length > 0) {
+            // Method 1: Check if point is within the bounding box
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             
-            for (let i = 0; i < shape.points.length; i++) {
-                const p1 = shape.points[i-1];
-                const p2 = shape.points[i];
+            for (const point of shape.points) {
+                minX = Math.min(minX, point.x);
+                minY = Math.min(minY, point.y);
+                maxX = Math.max(maxX, point.x);
+                maxY = Math.max(maxY, point.y);
+            }
+            
+            // First check if point is in the bounding box with some padding
+            const padding = 100; // Increase this for easier selection
+            if (x >= minX - padding && x <= maxX + padding && 
+                y >= minY - padding && y <= maxY + padding) {
                 
-                // Distance from point to line
-                // segment
-                if(!p1 || !p2) return false
-                const distance = this.pointToLineDistance(x, y, p1.x, p1.y, p2.x, p2.y);
-                if (distance <= tolerance) {
-                    return true;
+                // Method 2: Check distance to line segments for more precise selection
+                const tolerance = 100; // Pixel tolerance for selection
+                
+                // Skip the first point when looking for previous point
+                for (let i = 1; i < shape.points.length; i++) {
+                    const p1 = shape.points[i-1];
+                    const p2 = shape.points[i];
+                    if(!p1 || !p2)return false;
+                    
+                    const distance = this.pointToLineDistance(x, y, p1.x, p1.y, p2.x, p2.y);
+                    if (distance <= tolerance) {
+                        return true;
+                    }
                 }
             }
             return false;
@@ -301,7 +317,6 @@ export class Game{
         return null;
     }
     
-    // Move selected shape
     moveSelectedShape(dx: number, dy: number) {
         if (!this.selectedShape) return;
         
