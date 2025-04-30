@@ -184,8 +184,7 @@ export class Game{
                 this.ctx.stroke();
                 this.ctx.closePath();
                 this.ctx.lineWidth = 1;
-                
-                // If selected, draw selection indicators
+
                 if (isSelected) {
                     this.drawSelectionBox(shape);
                 }
@@ -208,7 +207,7 @@ export class Game{
                 shape.radius * 2 + 10
             );
         } else if (shape.type === "pencil") {
-            // Calculate bounding box for pencil points
+
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             
             for (const point of shape.points) {
