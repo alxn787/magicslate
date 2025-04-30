@@ -218,7 +218,7 @@ export class Game{
                 maxY = Math.max(maxY, point.y);
             }
             
-            // Draw the bounding rectangle for pencil points
+
             this.ctx.strokeRect(minX - 5, minY - 5, maxX - minX + 10, maxY - minY + 10);
         }
         
@@ -226,8 +226,7 @@ export class Game{
         this.ctx.lineWidth = 1;
     }
     
-    // Check if a point is inside a shape
-    // Fix for isPointInShape method with pencil tool
+
     isPointInShape(x: number, y: number, shape: Shape): boolean {
         if (shape.type === "rect") {
             return x >= shape.x && x <= shape.x + shape.width && 
