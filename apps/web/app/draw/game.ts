@@ -246,9 +246,8 @@ export class Game{
                 maxX = Math.max(maxX, point.x);
                 maxY = Math.max(maxY, point.y);
             }
-            
-            // First check if point is in the bounding box with some padding
-            const padding = 100; // Increase this for easier selection
+
+            const padding = 100; 
             if (x >= minX - padding && x <= maxX + padding && 
                 y >= minY - padding && y <= maxY + padding) {
                 
