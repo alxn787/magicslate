@@ -253,8 +253,7 @@ export class Game{
                 
 
                 const tolerance = 100; 
-                
-                // Skip the first point when looking for previous point
+
                 for (let i = 1; i < shape.points.length; i++) {
                     const p1 = shape.points[i-1];
                     const p2 = shape.points[i];
