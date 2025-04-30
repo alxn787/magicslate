@@ -251,8 +251,8 @@ export class Game{
             if (x >= minX - padding && x <= maxX + padding && 
                 y >= minY - padding && y <= maxY + padding) {
                 
-                // Method 2: Check distance to line segments for more precise selection
-                const tolerance = 100; // Pixel tolerance for selection
+
+                const tolerance = 100; 
                 
                 // Skip the first point when looking for previous point
                 for (let i = 1; i < shape.points.length; i++) {
