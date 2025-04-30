@@ -381,7 +381,6 @@ export class Game{
                     this.moveOffsetY = e.clientY - shape.points[0].y;
                 }
             } else {
-                // Clicked on empty space, deselect
                 this.selectedShape = null;
             }
             
