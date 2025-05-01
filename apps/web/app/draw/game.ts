@@ -65,7 +65,6 @@ export class Game{
 
     setTool(Tool:Tool){
         this.selectedTool =  Tool;
-        // Deselect when changing tools
         if (Tool !== 'select') {
             this.selectedShape = null;
         }
