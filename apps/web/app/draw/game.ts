@@ -355,7 +355,7 @@ export class Game{
             if (shape) {
                 this.selectedShape = shape;
                 this.isMoving = true;
-                
+
                 if (shape.type === "rect") {
                     this.moveOffsetX = e.clientX - shape.x;
                     this.moveOffsetY = e.clientY - shape.y;
@@ -363,8 +363,6 @@ export class Game{
                     this.moveOffsetX = e.clientX - shape.centerX;
                     this.moveOffsetY = e.clientY - shape.centerY;
                 } else if (shape.type === "pencil" && shape.points.length > 0) {
-                    // Use the first point as
-                    // reference
                     //@ts-ignore
                     this.moveOffsetX = e.clientX - shape.points[0].x;
                     //@ts-ignore
