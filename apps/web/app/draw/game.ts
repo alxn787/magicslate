@@ -350,14 +350,12 @@ export class Game{
         this.startY = e.clientY;
         
         if (this.selectedTool === "select") {
-            // Try to select a shape
             const shape = this.findShapeAt(e.clientX, e.clientY);
             
             if (shape) {
                 this.selectedShape = shape;
                 this.isMoving = true;
                 
-                // Calculate offset for smoother dragging
                 if (shape.type === "rect") {
                     this.moveOffsetX = e.clientX - shape.x;
                     this.moveOffsetY = e.clientY - shape.y;
