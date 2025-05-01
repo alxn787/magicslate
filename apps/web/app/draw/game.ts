@@ -148,7 +148,6 @@ export class Game{
                 this.ctx.strokeStyle = "rgba(255,0,255)";        
                 this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
                 
-                // If selected, draw selection indicators
                 if (isSelected) {
                     this.drawSelectionBox(shape);
                 }
@@ -160,7 +159,6 @@ export class Game{
                 this.ctx.stroke();
                 this.ctx.closePath();
                 
-                // If selected, draw selection indicators
                 if (isSelected) {
                     this.drawSelectionBox(shape);
                 }
