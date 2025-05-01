@@ -144,10 +144,8 @@ export class Game{
             const isSelected = this.selectedShape && shape.id === this.selectedShape.id;
             
             if(shape.type == "rect"){
-                // Draw the rectangle
                 this.ctx.strokeStyle = "rgba(255,0,255)";        
                 this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-                
                 if (isSelected) {
                     this.drawSelectionBox(shape);
                 }
