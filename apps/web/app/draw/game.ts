@@ -329,14 +329,12 @@ export class Game{
             }));
         }
         
-        // Update the shape in our local array
         const index = this.existingShapes.findIndex(s => s.id === shape.id);
         if (index !== -1) {
             this.existingShapes[index] = updatedShape;
             this.selectedShape = updatedShape;
         }
         
-        // Send update to other clients
         this.socket.send(JSON.stringify({
             type: "updateShape",
             roomId: this.roomId,
