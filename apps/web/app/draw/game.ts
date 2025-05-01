@@ -262,7 +262,6 @@ export class Game{
         return false;
     }
     
-    // Calculate distance from point to line segment
     pointToLineDistance(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
         const A = px - x1;
         const B = py - y1;
