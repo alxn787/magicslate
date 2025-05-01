@@ -230,7 +230,6 @@ export class Game{
             const dy = y - shape.centerY;
             return dx * dx + dy * dy <= shape.radius * shape.radius;
         } else if (shape.type === "pencil" && shape.points && shape.points.length > 0) {
-            // Method 1: Check if point is within the bounding box
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             
             for (const point of shape.points) {
