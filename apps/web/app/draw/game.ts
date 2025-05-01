@@ -382,7 +382,6 @@ export class Game{
         this.clicked = false;
         
         if (this.selectedTool === "select") {
-            // End moving operation
             const index = this.existingShapes.findIndex(x => x.id === this.selectedShape?.id);
             if(!this.selectedShape)return;
             this.existingShapes[index] = this.selectedShape;
