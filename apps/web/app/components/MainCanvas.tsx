@@ -85,10 +85,11 @@ function TopBar({
   game: Game | undefined;
 }) {
   return (
-    <div className="flex justify-start gap-2 fixed top-10 left-10 z-10">
-      <IconButton
+    <div className="flex justify-center gap-2 fixed top-5 left-0 right-0 bg-black p-2">
+     <div className="bg-neutral-800 flex justify-center gap-2 fixed top-5 p-1 rounded-md text-xs ">
+     <IconButton
         activated={selectedTool === "pencil"}
-        icon={<Pencil className="text-white" />}
+        icon={<Pencil className="text-white text-2xl" />}
         onClick={() => setSelectedTool("pencil")}
       />
       <IconButton
@@ -121,6 +122,7 @@ function TopBar({
           icon={<Pointer className="text-white" />}
           onClick={() => setSelectedTool("select")}
           />
+     </div>
     </div>
   );
 }

@@ -103,6 +103,7 @@ export class Game{
         this.existingShapes = [];
         this.selectedShape = null;
         this.ClearCanvas(); 
+        this.selectedTool = "select";
     }
     
     async init(){
