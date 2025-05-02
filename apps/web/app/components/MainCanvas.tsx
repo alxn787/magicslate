@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./Iconbutton";
 import { Circle, Pencil, Pointer, RectangleHorizontal, Trash, ZoomIn, ZoomOut } from "lucide-react";
 import { Game } from "../draw/game";
+import { SideBar, DrawingProperties } from "./Sidebar";
 
 export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut" | "select";
 
@@ -18,7 +19,13 @@ export default function MainCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [game, setGame] = useState<Game>();
-  const [selectedTool, setSelectedTool] = useState<Tool>("circle");
+  const [selectedTool, setSelectedTool] = useState<Tool>("select");
+  const [drawingProperties, setDrawingProperties] = useState<DrawingProperties>({
+    strokeColor: "#1a1c2c",
+    strokeWidth: 2,
+    fillColor: "transparent",
+    opacity: 1
+  });
 
   // Resize canvas properly to avoid zoom issue
   useEffect(() => {
@@ -56,7 +63,7 @@ export default function MainCanvas({
         g.destroy();
       };
     }
-  }, [canvasRef]);
+  }, [canvasRef, roomId, token, socket]);
 
   useEffect(() => {
     if (game) {
@@ -64,15 +71,28 @@ export default function MainCanvas({
     }
   }, [selectedTool, game]);
 
+
+  useEffect(() => {
+    if (game) {
+      game.setDrawingProperties(drawingProperties);
+    }
+  }, [drawingProperties, game]);
+
   return (
     <div className="bg-black">
       <canvas ref={canvasRef} />
-      <TopBar selectedTool={selectedTool} setSelectedTool={setSelectedTool} game ={game} />
+      <TopBar 
+        selectedTool={selectedTool} 
+        setSelectedTool={setSelectedTool} 
+        game={game} 
+      />
+      <SideBar 
+        properties={drawingProperties} 
+        setProperties={setDrawingProperties} 
+        game={game} 
+      />
     </div>
   );
-}
-function Clearstate({ game }: { game: Game }) {
-  game.clearSlate();
 }
 
 function TopBar({
@@ -86,43 +106,43 @@ function TopBar({
 }) {
   return (
     <div className="flex justify-center gap-2 fixed top-5 left-0 right-0 bg-black p-2">
-     <div className="bg-neutral-800 flex justify-center gap-2 fixed top-5 p-1 rounded-md text-xs ">
-     <IconButton
-        activated={selectedTool === "pencil"}
-        icon={<Pencil className="text-white text-2xl" />}
-        onClick={() => setSelectedTool("pencil")}
-      />
-      <IconButton
-        activated={selectedTool === "rect"}
-        icon={<RectangleHorizontal className="text-white" />}
-        onClick={() => setSelectedTool("rect")}
-      />
-      <IconButton
-        activated={selectedTool === "circle"}
-        icon={<Circle className="text-white" />}
-        onClick={() => setSelectedTool("circle")}
-      />
-      <IconButton
-        activated={selectedTool === "zoomIn"}
-        icon={<ZoomIn className="text-white" />}
-        onClick={() => setSelectedTool("zoomIn")}
-      />
-      <IconButton
-        activated={selectedTool === "zoomOut"}
-        icon={<ZoomOut className="text-white" />}
-        onClick={() => setSelectedTool("zoomOut")}
+      <div className="bg-neutral-800 flex justify-center gap-2 fixed top-5 p-1 rounded-md text-xs ">
+        <IconButton
+          activated={selectedTool === "pencil"}
+          icon={<Pencil className="text-white text-2xl" />}
+          onClick={() => setSelectedTool("pencil")}
         />
         <IconButton
-        activated={selectedTool === "circle"}
-        icon={<Trash className="text-white" />}
-        onClick={() =>game?.clearSlate() }
+          activated={selectedTool === "rect"}
+          icon={<RectangleHorizontal className="text-white" />}
+          onClick={() => setSelectedTool("rect")}
+        />
+        <IconButton
+          activated={selectedTool === "circle"}
+          icon={<Circle className="text-white" />}
+          onClick={() => setSelectedTool("circle")}
+        />
+        <IconButton
+          activated={selectedTool === "zoomIn"}
+          icon={<ZoomIn className="text-white" />}
+          onClick={() => setSelectedTool("zoomIn")}
+        />
+        <IconButton
+          activated={selectedTool === "zoomOut"}
+          icon={<ZoomOut className="text-white" />}
+          onClick={() => setSelectedTool("zoomOut")}
+        />
+        <IconButton
+          activated={false}
+          icon={<Trash className="text-white" />}
+          onClick={() => game?.clearSlate()}
         />
         <IconButton
           activated={selectedTool === "select"}
           icon={<Pointer className="text-white" />}
           onClick={() => setSelectedTool("select")}
-          />
-     </div>
+        />
+      </div>
     </div>
   );
 }
