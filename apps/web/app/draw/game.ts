@@ -18,7 +18,7 @@ type Shape = ({
     width: number;
     height: number;
 } & BaseShapeStyle) | ({
-    type: "circle"; // Changed back to circle
+    type: "circle"; // Still type "circle"
     centerX: number;
     centerY: number;
     radiusX: number; // Kept radiusX
@@ -28,8 +28,8 @@ type Shape = ({
     points: { x: number, y: number }[];
 } & BaseShapeStyle);
 
-// Define the type for resize handles
-type ResizeHandle = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'top' | 'bottom' | 'left' | 'right' | null;
+// Define the type for resize handles - only corners
+type ResizeHandle = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | null;
 
 export class Game {
     private canvas: HTMLCanvasElement;
@@ -219,7 +219,6 @@ export class Game {
         this.applyDrawingStylesForTemporaryDrawing();
     }
 
-    // Method to apply drawing properties for temporary shapes drawn during mouse move
      private applyDrawingStylesForTemporaryDrawing(useFill = false) {
         this.ctx.strokeStyle = this.drawingProperties.strokeColor;
         this.ctx.lineWidth = this.drawingProperties.strokeWidth;
@@ -256,7 +255,7 @@ export class Game {
         return { x: 0, y: 0, width: 0, height: 0 }; // Should not reach here
     }
 
-    // Check if a point is on a resize handle
+    // Check if a point is on a resize handle - only corners
     private getResizeHandleAt(x: number, y: number, shape: Shape): ResizeHandle {
         const boundingBox = this.getShapeBoundingBox(shape);
         const handleSize = 10; // Size of the interactive handle area
@@ -267,10 +266,6 @@ export class Game {
             topRight: { x: boundingBox.x + boundingBox.width, y: boundingBox.y },
             bottomLeft: { x: boundingBox.x, y: boundingBox.y + boundingBox.height },
             bottomRight: { x: boundingBox.x + boundingBox.width, y: boundingBox.y + boundingBox.height },
-            top: { x: boundingBox.x + boundingBox.width / 2, y: boundingBox.y },
-            bottom: { x: boundingBox.x + boundingBox.width / 2, y: boundingBox.y + boundingBox.height },
-            left: { x: boundingBox.x, y: boundingBox.y + boundingBox.height / 2 },
-            right: { x: boundingBox.x + boundingBox.width, y: boundingBox.y + boundingBox.height / 2 },
         };
 
         for (const handle in handles) {
@@ -302,7 +297,7 @@ export class Game {
         // Restore default line width after drawing selection box
         // this.ctx.lineWidth = this.drawingProperties.strokeWidth; // Redundant if applyShapeStyles is used
 
-        // Draw resize handles (squares at corners and midpoints)
+        // Draw resize handles (squares at corners)
         const handleSize = 8;
         const halfHandleSize = handleSize / 2;
         this.ctx.fillStyle = "rgba(0,255,255,1)"; // Color of the handles
@@ -312,12 +307,6 @@ export class Game {
         this.ctx.fillRect(x + width + 5 - halfHandleSize, y - 5 - halfHandleSize, handleSize, handleSize); // Top-right
         this.ctx.fillRect(x - 5 - halfHandleSize, y + height + 5 - halfHandleSize, handleSize, handleSize); // Bottom-left
         this.ctx.fillRect(x + width + 5 - halfHandleSize, y + height + 5 - halfHandleSize, handleSize, handleSize); // Bottom-right
-
-        // Mid-point handles
-        this.ctx.fillRect(x + width / 2 - halfHandleSize, y - 5 - halfHandleSize, handleSize, handleSize); // Top
-        this.ctx.fillRect(x + width / 2 - halfHandleSize, y + height + 5 - halfHandleSize, handleSize, handleSize); // Bottom
-        this.ctx.fillRect(x - 5 - halfHandleSize, y + height / 2 - halfHandleSize, handleSize, handleSize); // Left
-        this.ctx.fillRect(x + width + 5 - halfHandleSize, y + height / 2 - halfHandleSize, handleSize, handleSize); // Right
     }
 
     isPointInShape(x: number, y: number, shape: Shape): boolean {
@@ -504,20 +493,7 @@ export class Game {
                     newWidth = initialWidth + dx;
                     newHeight = initialHeight + dy;
                     break;
-                case 'top':
-                    newY = initialY + dy;
-                    newHeight = initialHeight - dy;
-                    break;
-                case 'bottom':
-                    newHeight = initialHeight + dy;
-                    break;
-                case 'left':
-                    newX = initialX + dx;
-                    newWidth = initialWidth - dx;
-                    break;
-                case 'right':
-                    newWidth = initialWidth + dx;
-                    break;
+                 // Removed midpoint handle cases
             }
 
              // Prevent very small width or height, maintain minimum size
@@ -540,65 +516,52 @@ export class Game {
             updated.height = newHeight;
 
         } else if (updated.type === "circle") { // Still type "circle" but using ellipse logic
-             // Resizing an ellipse from a handle
-            let newRadiusX = Math.abs(initialBoundingBox.width) / 2;
-            let newRadiusY = Math.abs(initialBoundingBox.height) / 2;
-            let newCenterX = initialBoundingBox.x + newRadiusX;
-            let newCenterY = initialBoundingBox.y + newRadiusY;
-
+             // Resizing an ellipse from a handle - Revised Calculation
+            let anchorX = initialX;
+            let anchorY = initialY;
 
             switch (this.resizeHandle) {
                  case 'topLeft':
-                     newCenterX = initialBoundingBox.x + (initialBoundingBox.width - dx) / 2;
-                     newCenterY = initialBoundingBox.y + (initialBoundingBox.height - dy) / 2;
-                     newRadiusX = Math.abs(initialBoundingBox.width - dx) / 2;
-                     newRadiusY = Math.abs(initialBoundingBox.height - dy) / 2;
+                     anchorX = initialX + initialWidth;
+                     anchorY = initialY + initialHeight;
                      break;
                  case 'topRight':
-                     newCenterX = initialBoundingBox.x + (initialBoundingBox.width + dx) / 2;
-                     newCenterY = initialBoundingBox.y + (initialBoundingBox.height - dy) / 2;
-                     newRadiusX = Math.abs(initialBoundingBox.width + dx) / 2;
-                     newRadiusY = Math.abs(initialBoundingBox.height - dy) / 2;
+                     anchorX = initialX;
+                     anchorY = initialY + initialHeight;
                      break;
                  case 'bottomLeft':
-                     newCenterX = initialBoundingBox.x + (initialBoundingBox.width - dx) / 2;
-                     newCenterY = initialBoundingBox.y + (initialBoundingBox.height + dy) / 2;
-                     newRadiusX = Math.abs(initialBoundingBox.width - dx) / 2;
-                     newRadiusY = Math.abs(initialBoundingBox.height + dy) / 2;
+                     anchorX = initialX + initialWidth;
+                     anchorY = initialY;
                      break;
                  case 'bottomRight':
-                     newCenterX = initialBoundingBox.x + (initialBoundingBox.width + dx) / 2;
-                     newCenterY = initialBoundingBox.y + (initialBoundingBox.height + dy) / 2;
-                     newRadiusX = Math.abs(initialBoundingBox.width + dx) / 2;
-                     newRadiusY = Math.abs(initialBoundingBox.height + dy) / 2;
+                     anchorX = initialX;
+                     anchorY = initialY;
                      break;
-                 case 'top':
-                     newCenterY = initialBoundingBox.y + (initialBoundingBox.height - dy) / 2;
-                     newRadiusY = Math.abs(initialBoundingBox.height - dy) / 2;
-                     break;
-                 case 'bottom':
-                     newCenterY = initialBoundingBox.y + (initialBoundingBox.height + dy) / 2;
-                     newRadiusY = Math.abs(initialBoundingBox.height + dy) / 2;
-                     break;
-                 case 'left':
-                     newCenterX = initialBoundingBox.x + (initialBoundingBox.width - dx) / 2;
-                     newRadiusX = Math.abs(initialBoundingBox.width - dx) / 2;
-                     break;
-                 case 'right':
-                     newCenterX = initialBoundingBox.x + (initialBoundingBox.width + dx) / 2;
-                     newRadiusX = Math.abs(initialBoundingBox.width + dx) / 2;
-                     break;
+                  // Removed midpoint handle cases
              }
 
-             // Prevent very small radii, maintain minimum size
-             const minRadius = 2.5;
-             if (newRadiusX < minRadius) newRadiusX = minRadius;
-             if (newRadiusY < minRadius) newRadiusY = minRadius;
+             // Calculate the new bounding box based on the anchor and current mouse position
+             const finalX = anchorX;
+             const finalY = anchorY;
+             const currentDraggedX = this.startX + dx;
+             const currentDraggedY = this.startY + dy;
 
-            updated.centerX = newCenterX;
-            updated.centerY = newCenterY;
-            updated.radiusX = newRadiusX;
-            updated.radiusY = newRadiusY;
+             const newBoundingBoxX = Math.min(finalX, currentDraggedX);
+             const newBoundingBoxY = Math.min(finalY, currentDraggedY);
+             const newBoundingBoxWidth = Math.abs(finalX - currentDraggedX);
+             const newBoundingBoxHeight = Math.abs(finalY - currentDraggedY);
+
+
+            // Prevent very small width or height, maintain minimum size
+             const minSize = 5;
+             const finalWidth = Math.max(minSize, newBoundingBoxWidth);
+             const finalHeight = Math.max(minSize, newBoundingBoxHeight);
+
+
+            updated.centerX = newBoundingBoxX + finalWidth / 2;
+            updated.centerY = newBoundingBoxY + finalHeight / 2;
+            updated.radiusX = finalWidth / 2;
+            updated.radiusY = finalHeight / 2;
 
 
         } else if (updated.type === "pencil") {
@@ -623,14 +586,7 @@ export class Game {
                 case 'bottomLeft':
                      scale = Math.min(scaleX, scaleY); // Could be different logic for these corners
                     break;
-                case 'top':
-                case 'bottom':
-                    scale = scaleY;
-                    break;
-                case 'left':
-                case 'right':
-                    scale = scaleX;
-                    break;
+                 // Removed midpoint handle cases
             }
 
              // Ensure scale is not too small
@@ -710,6 +666,10 @@ export class Game {
             this.ClearCanvas(); // Redraw to show selection box or remove it
         } else if (this.selectedTool === "pencil") {
             this.currentPoints = [{ x: e.clientX, y: e.clientY }];
+        } else if (this.selectedTool === "rect" || this.selectedTool === "circle") {
+             // Initialize drawing for rect or circle (ellipse)
+             this.ClearCanvas(); // Clear canvas to show temporary drawing
+             this.applyDrawingStylesForTemporaryDrawing(true);
         }
     }
 
@@ -914,14 +874,7 @@ export class Game {
             case 'bottomLeft':
                 this.canvas.style.cursor = 'nesw-resize';
                 break;
-            case 'top':
-            case 'bottom':
-                this.canvas.style.cursor = 'ns-resize';
-                break;
-            case 'left':
-            case 'right':
-                this.canvas.style.cursor = 'ew-resize';
-                break;
+             // Removed midpoint handle cursor styles
             default:
                 this.canvas.style.cursor = 'default';
         }
