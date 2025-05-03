@@ -5,7 +5,7 @@ import { getExistingShapes } from "./http";
 type BaseShapeStyle = {
     strokeColor: string;
     strokeWidth: number;
-    fillColor: string;
+    fillColor: string; // Still relevant for text background or future filled shapes
     opacity: number;
     id: string;
 }
@@ -17,19 +17,42 @@ type Shape = ({
     y: number;
     width: number;
     height: number;
-    cornerRadius: number; // *** CHANGE: Added cornerRadius
+    cornerRadius: number;
 } & BaseShapeStyle) | ({
-    type: "circle"; // Still type "circle"
+    type: "circle";
     centerX: number;
     centerY: number;
-    radiusX: number; // Kept radiusX
-    radiusY: number; // Kept radiusY
+    radiusX: number;
+    radiusY: number;
 } & BaseShapeStyle) | ({
     type: "pencil";
     points: { x: number, y: number }[];
+} & BaseShapeStyle) | ({ 
+    type: "line";
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+} & BaseShapeStyle) | ({ 
+    type: "arrow";
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    arrowheadSize: number; // Size of the arrowhead
+} & BaseShapeStyle) | ({ // Added Text Shape Type
+    type: "text";
+    x: number;
+    y: number;
+    text: string;
+    fontSize: number;
+    fontFamily: string;
+    color: string; // Text color
+    textAlign: CanvasTextAlign;
+    textBaseline: CanvasTextBaseline;
 } & BaseShapeStyle);
 
-// Define the type for resize handles - only corners
+
 type ResizeHandle = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | null;
 
 export class Game {
@@ -42,7 +65,7 @@ export class Game {
     private clicked: boolean;
     private startX = 0;
     private startY = 0;
-    private selectedTool: Tool = 'circle'; // Default tool can be circle
+    private selectedTool: Tool = 'select';
     private currentPoints: { x: number, y: number }[] = [];
     private scale = 1;
 
@@ -51,10 +74,9 @@ export class Game {
     private moveOffsetX: number = 0;
     private moveOffsetY: number = 0;
 
-    // New state for resizing
     private isResizing: boolean = false;
     private resizeHandle: ResizeHandle = null;
-    private initialShapeState: Shape | null = null; // Store initial state for resizing calculations
+    private initialShapeState: Shape | null = null;
 
     private drawingProperties: DrawingProperties = {
         strokeColor: "#1a1c2c",
@@ -63,8 +85,18 @@ export class Game {
         opacity: 1
     };
 
-    // *** CHANGE: Default corner radius for new rectangles
     private defaultCornerRadius: number = 10;
+    private defaultArrowheadSize: number = 15; // Default size for arrowheads
+    private defaultFontSize: number = 16; // Default font size for text
+    private defaultFontFamily: string = "sans-serif"; // Default font family for text
+    private defaultTextColor: string = "#1a1c2c"; // Default text color
+
+    private drawingShapeId: string | null = null;
+
+    // State for text editing
+    private isEditingText: boolean = false;
+    private textInput: HTMLInputElement | null = null;
+    private editingTextShape: (Extract<Shape, { type: 'text' }> & { index: number }) | null = null;
 
 
     constructor(canvas: HTMLCanvasElement, roomId: string, token: string, socket: WebSocket) {
@@ -77,30 +109,57 @@ export class Game {
         this.init();
         this.initHandler();
         this.initMouseHandler();
+         // Add resize listener to update text input position on canvas resize/zoom
+        window.addEventListener("resize", this.handleCanvasResize);
     }
 
     destroy() {
         this.canvas.removeEventListener('mousedown', this.MouseDownHandler);
         this.canvas.removeEventListener("mouseup", this.MouseUpHandler);
         this.canvas.removeEventListener("mousemove", this.MouseMoveHandler);
-         this.canvas.removeEventListener("mouseout", this.MouseOutHandler);
+        this.canvas.removeEventListener("mouseout", this.MouseOutHandler);
+        window.removeEventListener("resize", this.handleCanvasResize); // Remove resize listener
+        // Clean up text input if it exists
+        if (this.textInput && this.textInput.parentElement) {
+            this.textInput.parentElement.removeChild(this.textInput);
+        }
     }
 
     setTool(tool: Tool) {
         this.selectedTool = tool;
-        if (tool !== 'select') {
-            this.selectedShape = null;
-            this.ClearCanvas(); // Clear selection box when tool changes
-        }
+        this.selectedShape = null;
+        this.isMoving = false;
+        this.isResizing = false;
+        this.resizeHandle = null;
+        this.initialShapeState = null;
+        this.currentPoints = [];
+        this.drawingShapeId = null;
+        this.canvas.style.cursor = 'default';
+        this.ClearCanvas();
+        this.disableTextEditing(); // Disable text editing when tool changes
     }
 
     setDrawingProperties(props: DrawingProperties): void {
         this.drawingProperties = props;
-         // When drawing properties are updated, redraw to show potential changes on selected shape if applicable
-        this.ClearCanvas();
+         // If a text shape is selected, update its properties
+        if (this.selectedShape && this.selectedShape.type === 'text') {
+             const textShape = this.selectedShape as Extract<Shape, { type: 'text' }>;
+             textShape.color = props.strokeColor; // Assuming strokeColor controls text color
+             textShape.opacity = props.opacity;
+             // Font size and family might be separate properties or derived from strokeWidth
+             // Use a reasonable scaling factor or a dedicated font size property in DrawingProperties
+             textShape.fontSize = props.strokeWidth * 2 > 8 ? props.strokeWidth * 2 : 8; // Example: scale font size with stroke width, minimum 8px
+             // textShape.fontFamily = ... // If you add font family to DrawingProperties
+
+             // Send update over socket
+             this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(textShape) }));
+             this.ClearCanvas(); // Redraw with updated text properties
+             this.updateTextInputPosition(textShape); // Update input position and size
+        } else {
+            this.ClearCanvas();
+        }
     }
 
-    // This method should apply styles based on the shape being drawn, not global properties
     private applyShapeStyles(ctx: CanvasRenderingContext2D, shape: Shape) {
         ctx.strokeStyle = shape.strokeColor;
         ctx.lineWidth = shape.strokeWidth;
@@ -114,28 +173,60 @@ export class Game {
         } else {
             ctx.fillStyle = "transparent";
         }
+        ctx.globalAlpha = shape.opacity;
+    }
+
+     private applyDrawingStylesForTemporaryDrawing(useFill = false) {
+        this.ctx.strokeStyle = this.drawingProperties.strokeColor;
+        this.ctx.lineWidth = this.drawingProperties.strokeWidth;
+        this.ctx.globalAlpha = this.drawingProperties.opacity;
+
+        if (useFill && this.drawingProperties.fillColor !== "transparent") {
+            const { fillColor } = this.drawingProperties;
+            const r = parseInt(fillColor.slice(1, 3), 16);
+            const g = parseInt(fillColor.slice(3, 5), 16);
+            const b = parseInt(fillColor.slice(5, 7), 16);
+            this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        } else {
+            this.ctx.fillStyle = "transparent";
+        }
     }
 
 
     zoomIn() {
         this.scale = Math.min(this.scale * 1.2, 10);
         this.ClearCanvas();
+         // Update text input position and size on zoom
+        if (this.isEditingText && this.editingTextShape) {
+            this.updateTextInputPosition(this.editingTextShape);
+        }
     }
 
     zoomOut() {
         this.scale = Math.max(this.scale / 1.2, 0.1);
         this.ClearCanvas();
+         // Update text input position and size on zoom
+        if (this.isEditingText && this.editingTextShape) {
+            this.updateTextInputPosition(this.editingTextShape);
+        }
     }
 
     resetZoom() {
         this.scale = 1;
         this.ClearCanvas();
+         // Update text input position and size on zoom reset
+        if (this.isEditingText && this.editingTextShape) {
+            this.updateTextInputPosition(this.editingTextShape);
+        }
     }
 
     clearSlate() {
         this.socket.send(JSON.stringify({ type: "clearslate", roomId: this.roomId }));
         this.existingShapes = [];
         this.selectedShape = null;
+        this.currentPoints = [];
+        this.drawingShapeId = null;
+        this.disableTextEditing(); // Disable text editing on clear
         this.ClearCanvas();
         this.selectedTool = "select";
     }
@@ -150,53 +241,83 @@ export class Game {
             const message = JSON.parse(event.data);
             if (message.type === "chat") {
                 const parsedShape = JSON.parse(message.message);
-                this.existingShapes.push(parsedShape);
+                const existingIndex = this.existingShapes.findIndex(s => s.id === parsedShape.id);
+                if (existingIndex !== -1) {
+                    this.existingShapes[existingIndex] = parsedShape;
+                } else {
+                    this.existingShapes.push(parsedShape);
+                }
                 this.ClearCanvas();
-            } else if (message.type === "clearslate") {
+            } else if (message.type === "streamingShape") {
+                 const parsedShape = JSON.parse(message.shape);
+                 const existingIndex = this.existingShapes.findIndex(s => s.id === parsedShape.id);
+                 if (existingIndex !== -1) {
+                     this.existingShapes[existingIndex] = parsedShape;
+                 } else {
+                     this.existingShapes.push(parsedShape);
+                 }
+                 this.ClearCanvas();
+            }
+            else if (message.type === "clearslate") {
                 this.existingShapes = [];
                 this.selectedShape = null;
+                 this.currentPoints = [];
+                 this.drawingShapeId = null;
+                 this.disableTextEditing();
                 this.ClearCanvas();
             } else if (message.type === "updateShape") {
                 const updatedShape = JSON.parse(message.shape);
                 const index = this.existingShapes.findIndex(s => s.id === updatedShape.id);
                 if (index !== -1) {
                     this.existingShapes[index] = updatedShape;
-                    // If the updated shape is the currently selected one, update the reference
                     if (this.selectedShape && this.selectedShape.id === updatedShape.id) {
                         this.selectedShape = updatedShape;
+                         // If the updated shape is the one being edited, update the text input value and position
+                         if (this.isEditingText && this.editingTextShape && this.editingTextShape.id === updatedShape.id && updatedShape.type === 'text') {
+                            this.textInput!.value = updatedShape.text;
+                            this.editingTextShape.text = updatedShape.text; // Also update the local editing shape object
+                            this.updateTextInputPosition(updatedShape);
+                         }
                     }
                     this.ClearCanvas();
                 }
+            } else if (message.type === "eraseShape") {
+                 const shapeToErase: Shape = JSON.parse(message.shape);
+                 if (shapeToErase) {
+                     this.existingShapes = this.existingShapes.filter(shape => shape.id !== shapeToErase.id);
+                      if (this.selectedShape && this.selectedShape.id === shapeToErase.id) {
+                         this.selectedShape = null;
+                         this.disableTextEditing(); // Disable text editing if the edited shape is erased
+                     }
+                     this.ClearCanvas();
+                 }
             }
         };
     }
 
     ClearCanvas() {
-        // Clear the entire canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Redraw the background (optional, based on desired behavior)
-        this.ctx.fillStyle = "black"; // Or any desired background color
+        this.ctx.fillStyle = "black";
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        this.ctx.save();
 
 
         for (const shape of this.existingShapes) {
             const isSelected = this.selectedShape && shape.id === this.selectedShape.id;
 
-            // Apply styles specific to this shape
             this.applyShapeStyles(this.ctx, shape);
 
             if (shape.type === "rect") {
-                 // *** CHANGE: Use ctx.roundRect to draw the rectangle
                 this.ctx.beginPath();
                 this.ctx.roundRect(shape.x, shape.y, shape.width, shape.height, shape.cornerRadius);
                 this.ctx.stroke();
                 if (this.ctx.fillStyle !== 'transparent') {
-                     this.ctx.fill();
+                    this.ctx.fill();
                 }
-            } else if (shape.type === "circle") { // Still type "circle"
+            } else if (shape.type === "circle") {
                 this.ctx.beginPath();
-                // Draw an ellipse using radiusX and radiusY
                 this.ctx.ellipse(shape.centerX, shape.centerY, Math.abs(shape.radiusX), Math.abs(shape.radiusY), 0, 0, 2 * Math.PI);
                 this.ctx.stroke();
                 if (this.ctx.fillStyle !== 'transparent') {
@@ -215,34 +336,54 @@ export class Game {
                 }
                 this.ctx.stroke();
                 this.ctx.closePath();
-                // Restore default line width after drawing pencil line
-                // this.ctx.lineWidth = this.drawingProperties.strokeWidth; // Redundant if applyShapeStyles is used
+            } else if (shape.type === "line") {
+                this.ctx.beginPath();
+                this.ctx.moveTo(shape.x1, shape.y1);
+                this.ctx.lineTo(shape.x2, shape.y2);
+                this.ctx.stroke();
+                this.ctx.closePath();
+            } else if (shape.type === "arrow") {
+                this.ctx.beginPath();
+                this.ctx.moveTo(shape.x1, shape.y1);
+                this.ctx.lineTo(shape.x2, shape.y2);
+                this.ctx.stroke();
+
+                const angle = Math.atan2(shape.y2 - shape.y1, shape.x2 - shape.x1);
+                const arrowheadSize = shape.arrowheadSize;
+
+                this.ctx.save();
+                this.ctx.translate(shape.x2, shape.y2);
+                this.ctx.rotate(angle);
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(-arrowheadSize, arrowheadSize / 2);
+                this.ctx.lineTo(-arrowheadSize, -arrowheadSize / 2);
+                this.ctx.closePath();
+                this.ctx.fillStyle = shape.strokeColor;
+                this.ctx.fill();
+                this.ctx.restore();
+            } else if (shape.type === "text") {
+                 // Only draw text on canvas if not currently editing it
+                 if (!(this.isEditingText && this.editingTextShape && this.editingTextShape.id === shape.id)) {
+                     this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
+                     this.ctx.fillStyle = shape.color;
+                     this.ctx.globalAlpha = shape.opacity;
+                     this.ctx.textAlign = shape.textAlign;
+                     this.ctx.textBaseline = shape.textBaseline;
+                     this.ctx.fillText(shape.text, shape.x, shape.y);
+                 }
             }
+
 
             if (isSelected) {
                 this.drawSelectionBox(shape);
             }
         }
-         // Restore default drawing properties for potential temporary drawings in MouseMoveHandler
+        this.ctx.restore();
+
         this.applyDrawingStylesForTemporaryDrawing();
     }
 
-    // Method to apply drawing properties for temporary shapes drawn during mouse move
-     private applyDrawingStylesForTemporaryDrawing(useFill = false) {
-        this.ctx.strokeStyle = this.drawingProperties.strokeColor;
-        this.ctx.lineWidth = this.drawingProperties.strokeWidth;
-        if (useFill && this.drawingProperties.fillColor !== "transparent") {
-            const { fillColor, opacity } = this.drawingProperties;
-            const r = parseInt(fillColor.slice(1, 3), 16);
-            const g = parseInt(fillColor.slice(3, 5), 16);
-            const b = parseInt(fillColor.slice(5, 7), 16);
-            this.ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-        } else {
-            this.ctx.fillStyle = "transparent";
-        }
-    }
-
-    // Calculate the bounding box of a shape
     private getShapeBoundingBox(shape: Shape): { x: number, y: number, width: number, height: number } {
         if (shape.type === "rect") {
             const x = Math.min(shape.x, shape.x + shape.width);
@@ -250,7 +391,7 @@ export class Game {
             const width = Math.abs(shape.width);
             const height = Math.abs(shape.height);
              return { x, y, width, height };
-        } else if (shape.type === "circle") { // Still type "circle" but using ellipse properties
+        } else if (shape.type === "circle") {
             return { x: shape.centerX - Math.abs(shape.radiusX), y: shape.centerY - Math.abs(shape.radiusY), width: Math.abs(shape.radiusX) * 2, height: Math.abs(shape.radiusY) * 2 };
         } else if (shape.type === "pencil") {
             const points = shape.points;
@@ -259,15 +400,50 @@ export class Game {
             const maxX = Math.max(...points.map(p => p.x));
             const minY = Math.min(...points.map(p => p.y));
             const maxY = Math.max(...points.map(p => p.y));
-            return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+            const padding = 10;
+             return { x: minX - padding, y: minY - padding, width: (maxX - minX) + 2 * padding, height: (maxY - minY) + 2 * padding };
+        } else if (shape.type === "line" || shape.type === "arrow") {
+             const x = Math.min(shape.x1, shape.x2);
+             const y = Math.min(shape.y1, shape.y2);
+             const width = Math.abs(shape.x2 - shape.x1);
+             const height = Math.abs(shape.y2 - shape.y1);
+             const padding = shape.strokeWidth + 5;
+             return { x: x - padding, y: y - padding, width: width + 2 * padding, height: height + 2 * padding };
+        } else if (shape.type === "text") {
+             // Temporarily set font to get accurate metrics
+             this.ctx.save();
+             this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
+             const metrics = this.ctx.measureText(shape.text);
+             this.ctx.restore(); // Restore context
+
+             const actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+             let x = shape.x;
+             let y = shape.y;
+             let width = metrics.width;
+             let height = actualHeight;
+
+             if (shape.textAlign === 'center') {
+                 x -= width / 2;
+             } else if (shape.textAlign === 'right' || shape.textAlign === 'end') {
+                 x -= width;
+             }
+
+             if (shape.textBaseline === 'middle') {
+                 y -= actualHeight / 2;
+             } else if (shape.textBaseline === 'bottom' || shape.textBaseline === 'alphabetic' || shape.textBaseline === 'ideographic') {
+                 y -= actualHeight;
+             }
+             const padding = 5;
+             return { x: x - padding, y: y - padding, width: width + 2 * padding, height: height + 2 * padding };
         }
-        return { x: 0, y: 0, width: 0, height: 0 }; // Should not reach here
+        return { x: 0, y: 0, width: 0, height: 0 };
     }
 
-    // Check if a point is on a resize handle - only corners
     private getResizeHandleAt(x: number, y: number, shape: Shape): ResizeHandle {
+        if (shape.type === 'pencil' || shape.type === 'text') return null;
+
         const boundingBox = this.getShapeBoundingBox(shape);
-        const handleSize = 10; // Size of the interactive handle area
+        const handleSize = 10;
         const halfHandleSize = handleSize / 2;
 
         const handles = {
@@ -299,70 +475,67 @@ export class Game {
         this.ctx.lineWidth = 2;
         this.ctx.setLineDash([5, 5]);
 
-        // Draw the bounding box outline
         this.ctx.strokeRect(x - 5, y - 5, width + 10, height + 10);
 
         this.ctx.setLineDash([]);
-        // Restore default line width after drawing selection box
-        // this.ctx.lineWidth = this.drawingProperties.strokeWidth; // Redundant if applyShapeStyles is used
 
-        // Draw resize handles (squares at corners)
-        const handleSize = 8;
-        const halfHandleSize = handleSize / 2;
-        this.ctx.fillStyle = "rgba(0,255,255,1)"; // Color of the handles
+        if (shape.type !== 'pencil' && shape.type !== 'text') {
+            const handleSize = 8;
+            const halfHandleSize = handleSize / 2;
+            this.ctx.fillStyle = "rgba(0,255,255,1)";
 
-        // Corner handles
-        this.ctx.fillRect(x - 5 - halfHandleSize, y - 5 - halfHandleSize, handleSize, handleSize); // Top-left
-        this.ctx.fillRect(x + width + 5 - halfHandleSize, y - 5 - halfHandleSize, handleSize, handleSize); // Top-right
-        this.ctx.fillRect(x - 5 - halfHandleSize, y + height + 5 - halfHandleSize, handleSize, handleSize); // Bottom-left
-        this.ctx.fillRect(x + width + 5 - halfHandleSize, y + height + 5 - halfHandleSize, handleSize, handleSize); // Bottom-right
+            this.ctx.fillRect(x - 5 - halfHandleSize, y - 5 - halfHandleSize, handleSize, handleSize);
+            this.ctx.fillRect(x + width + 5 - halfHandleSize, y - 5 - halfHandleSize, handleSize, handleSize);
+            this.ctx.fillRect(x - 5 - halfHandleSize, y + height + 5 - halfHandleSize, handleSize, handleSize);
+            this.ctx.fillRect(x + width + 5 - halfHandleSize, y + height + 5 - halfHandleSize, handleSize, handleSize);
+        }
     }
 
     isPointInShape(x: number, y: number, shape: Shape): boolean {
         if (shape.type === "rect") {
-             // Account for negative width/height
             const rectX = Math.min(shape.x, shape.x + shape.width);
             const rectY = Math.min(shape.y, shape.y + shape.height);
             const rectWidth = Math.abs(shape.width);
             const rectHeight = Math.abs(shape.height);
-            // For rounded rectangles, this is an approximation. A more accurate check
-            // would be needed for precise hit testing within the rounded corners.
-            return x >= rectX && x <= rectX + rectWidth && y >= rectY && y <= rectY + rectHeight;
-        } else if (shape.type === "circle") { // Still type "circle" but using ellipse logic
+
+            if (x >= rectX && x <= rectX + rectWidth && y >= rectY && y <= rectY + rectHeight) {
+                 return true;
+            }
+            return false;
+        } else if (shape.type === "circle") {
             const dx = x - shape.centerX;
             const dy = y - shape.centerY;
-            // Check if point is inside the ellipse using the ellipse equation
-             // Avoid division by zero if radiusX or radiusY is 0
             const term1 = (shape.radiusX === 0) ? (dx === 0 ? 0 : Infinity) : (dx * dx) / (shape.radiusX * shape.radiusX);
             const term2 = (shape.radiusY === 0) ? (dy === 0 ? 0 : Infinity) : (dy * dy) / (shape.radiusY * shape.radiusY);
 
             return term1 + term2 <= 1;
 
         } else if (shape.type === "pencil") {
-             // Increased padding for easier selection of pencil lines
-            const padding = 10;
             const points = shape.points;
             if (points.length < 2) return false;
 
-            const minX = Math.min(...points.map(p => p.x)) - padding;
-            const maxX = Math.max(...points.map(p => p.x)) + padding;
-            const minY = Math.min(...points.map(p => p.y)) - padding;
-            const maxY = Math.max(...points.map(p => p.y)) + padding;
-
-            // Quick check if point is within the bounding box of the pencil line
-            if (x < minX || x > maxX || y < minY || y > maxY) return false;
-
-             // Tolerance for how close the point needs to be to the line segment
-            const tolerance = shape.strokeWidth / 2 + padding; // Tolerance based on stroke width and padding
+            const tolerance = this.drawingProperties.strokeWidth / 2 + 5;
 
             for (let i = 1; i < points.length; i++) {
                 const p1 = points[i - 1];
                 const p2 = points[i];
-                 //@ts-ignore - points are guaranteed to have x and y
+                 //@ts-ignore
                 const d = this.pointToLineDistance(x, y, p1, p2);
                 if (d <= tolerance) return true;
             }
             return false;
+        } else if (shape.type === "line" || shape.type === "arrow") {
+             const tolerance = shape.strokeWidth / 2 + 5;
+             //@ts-ignore
+             const d = this.pointToLineDistance(x, y, { x: shape.x1, y: shape.y1 }, { x: shape.x2, y: shape.y2 });
+             const boundingBox = this.getShapeBoundingBox(shape);
+              if (x >= boundingBox.x && x <= boundingBox.x + boundingBox.width && y >= boundingBox.y && y <= boundingBox.y + boundingBox.height) {
+                 return d <= tolerance;
+             }
+             return false;
+        } else if (shape.type === "text") {
+             const boundingBox = this.getShapeBoundingBox(shape);
+             return x >= boundingBox.x && x <= boundingBox.x + boundingBox.width && y >= boundingBox.y && y <= boundingBox.y + boundingBox.height;
         }
         return false;
     }
@@ -402,31 +575,18 @@ export class Game {
 
 
     findShapeAt(x: number, y: number): Shape | null {
-        // Iterate in reverse order to select the topmost shape
         for (let i = this.existingShapes.length - 1; i >= 0; i--) {
             const shape = this.existingShapes[i];
-            if (!shape) return null; // Should not happen, but as a safeguard
+            if (!shape) continue;
 
-            // Check if clicking on a resize handle first if a shape is already selected
             if (this.selectedTool === 'select' && this.selectedShape && this.selectedShape.id === shape.id) {
                 const handle = this.getResizeHandleAt(x, y, shape);
                 if (handle) {
-                    this.isResizing = true;
-                    this.resizeHandle = handle;
-                    this.initialShapeState = JSON.parse(JSON.stringify(shape)); // Store initial state
-                    this.startX = x; // Update startX/Y for resizing
-                    this.startY = y;
-                    return shape; // Return the selected shape to indicate interaction
+                    return shape;
                 }
             }
 
-            // If not clicking on a handle, check if clicking inside the shape
             if (this.isPointInShape(x, y, shape)) {
-                 // If a shape is found, and it's not the selected shape, clear the current selection
-                if (this.selectedShape && this.selectedShape.id !== shape.id) {
-                    this.selectedShape = null;
-                    this.ClearCanvas(); // Redraw to remove the old selection box
-                }
                 return shape;
             }
         }
@@ -437,53 +597,62 @@ export class Game {
     moveSelectedShape(dx: number, dy: number) {
         if (!this.selectedShape) return;
 
-        // Create a mutable copy for updates
-        const updated: Shape = JSON.parse(JSON.stringify(this.selectedShape));
+        const shapeToMove = this.existingShapes.find(s => s.id === this.selectedShape!.id);
 
-        if (updated.type === "rect") {
-            updated.x += dx;
-            updated.y += dy;
-        } else if (updated.type === "circle") { // Still type "circle"
-            updated.centerX += dx;
-            updated.centerY += dy;
-        } else if (updated.type === "pencil") {
-            updated.points = updated.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        if (!shapeToMove) return;
+
+        if (shapeToMove.type === "rect") {
+            shapeToMove.x += dx;
+            shapeToMove.y += dy;
+        } else if (shapeToMove.type === "circle") {
+            shapeToMove.centerX += dx;
+            shapeToMove.centerY += dy;
+        } else if (shapeToMove.type === "pencil") {
+            shapeToMove.points = shapeToMove.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        } else if (shapeToMove.type === "line" || shapeToMove.type === "arrow") {
+             shapeToMove.x1 += dx;
+             shapeToMove.y1 += dy;
+             shapeToMove.x2 += dx;
+             shapeToMove.y2 += dy;
+        } else if (shapeToMove.type === "text") {
+             shapeToMove.x += dx;
+             shapeToMove.y += dy;
+             if (this.isEditingText && this.editingTextShape && this.editingTextShape.id === shapeToMove.id) {
+                this.updateTextInputPosition(shapeToMove);
+             }
         }
 
-        // Update the shape in the existingShapes array
-        const index = this.existingShapes.findIndex(s => s.id === updated.id);
-        if (index !== -1) {
-             this.existingShapes[index] = updated;
-        }
+        this.selectedShape = shapeToMove;
 
-        // Update the selectedShape reference to the modified object
-        this.selectedShape = updated;
-
-        // Send update over socket during move for smoother experience
         this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(this.selectedShape) }));
         this.ClearCanvas();
     }
 
     resizeSelectedShape(currentX: number, currentY: number) {
         if (!this.selectedShape || !this.initialShapeState || !this.resizeHandle) return;
+        if (this.selectedShape.type === 'pencil' || this.selectedShape.type === 'text') return;
 
-        // Create a mutable copy for updates
-        const updated: Shape = JSON.parse(JSON.stringify(this.initialShapeState)); // Start from the initial state
+
+        const shapeToResize = this.existingShapes.find(s => s.id === this.selectedShape!.id);
+         if (!shapeToResize) return;
 
         const dx = currentX - this.startX;
         const dy = currentY - this.startY;
 
-        const initialBoundingBox = this.getShapeBoundingBox(this.initialShapeState);
-        const { x: initialX, y: initialY, width: initialWidth, height: initialHeight } = initialBoundingBox;
 
-        if (updated.type === "rect") {
+        if (shapeToResize.type === "rect") {
+             const initialRectState = this.initialShapeState as Extract<Shape, { type: 'rect' }>;
+
+            const initialBoundingBox = this.getShapeBoundingBox(initialRectState);
+            const { x: initialX, y: initialY, width: initialWidth, height: initialHeight } = initialBoundingBox;
+
             let newX = initialX;
             let newY = initialY;
             let newWidth = initialWidth;
             let newHeight = initialHeight;
-             let newCornerRadius = updated.cornerRadius; // *** CHANGE: Get initial corner radius
+            let newCornerRadius = initialRectState.cornerRadius;
 
-            // Apply changes based on the dragged handle
+
             switch (this.resizeHandle) {
                 case 'topLeft':
                     newX = initialX + dx;
@@ -505,39 +674,38 @@ export class Game {
                     newWidth = initialWidth + dx;
                     newHeight = initialHeight + dy;
                     break;
-                 // Removed midpoint handle cases
             }
 
-             // Prevent very small width or height, maintain minimum size
              const minSize = 5;
              if (Math.abs(newWidth) < minSize && newWidth !== 0) {
-                 newWidth = newWidth < 0 ? (newWidth / Math.abs(newWidth)) * minSize : minSize; // Corrected sign handling
+                 newWidth = newWidth < 0 ? (newWidth / Math.abs(newWidth)) * minSize : minSize;
              } else if (newWidth === 0) {
-                 newWidth = minSize; // Prevent division by zero in bounding box calculation
+                 newWidth = minSize;
              }
              if (Math.abs(newHeight) < minSize && newHeight !== 0) {
-                 newHeight = newHeight < 0 ? (newHeight / Math.abs(newHeight)) * minSize : minSize; // Corrected sign handling
+                 newHeight = newHeight < 0 ? (newHeight / Math.abs(newHeight)) * minSize : minSize;
              } else if (newHeight === 0) {
-                 newHeight = minSize; // Prevent division by zero
+                 newHeight = minSize;
              }
 
-
-             // *** CHANGE: Scale corner radius proportionally
              const widthScale = initialWidth !== 0 ? Math.abs(newWidth) / Math.abs(initialWidth) : 1;
              const heightScale = initialHeight !== 0 ? Math.abs(newHeight) / Math.abs(initialHeight) : 1;
-             // Use the minimum scale to avoid disproportionate rounding
              const scale = Math.min(widthScale, heightScale);
-             newCornerRadius = updated.cornerRadius * scale;
+             newCornerRadius = initialRectState.cornerRadius * scale;
 
 
-            updated.x = newX;
-            updated.y = newY;
-            updated.width = newWidth;
-            updated.height = newHeight;
-             updated.cornerRadius = newCornerRadius; // *** CHANGE: Update cornerRadius
+            shapeToResize.x = newX;
+            shapeToResize.y = newY;
+            shapeToResize.width = newWidth;
+            shapeToResize.height = newHeight;
+            shapeToResize.cornerRadius = newCornerRadius;
 
-        } else if (updated.type === "circle") { // Still type "circle" but using ellipse logic
-             // Resizing an ellipse from a handle - Revised Calculation
+        } else if (shapeToResize.type === "circle") {
+             const initialCircleState = this.initialShapeState as Extract<Shape, { type: 'circle' }>;
+
+            const initialBoundingBox = this.getShapeBoundingBox(initialCircleState);
+            const { x: initialX, y: initialY, width: initialWidth, height: initialHeight } = initialBoundingBox;
+
             let anchorX = initialX;
             let anchorY = initialY;
 
@@ -558,10 +726,8 @@ export class Game {
                      anchorX = initialX;
                      anchorY = initialY;
                      break;
-                  // Removed midpoint handle cases
              }
 
-             // Calculate the new bounding box based on the anchor and current mouse position
              const finalX = anchorX;
              const finalY = anchorY;
              const currentDraggedX = this.startX + dx;
@@ -572,70 +738,27 @@ export class Game {
              const newBoundingBoxWidth = Math.abs(finalX - currentDraggedX);
              const newBoundingBoxHeight = Math.abs(finalY - currentDraggedY);
 
-
-            // Prevent very small width or height, maintain minimum size
              const minSize = 5;
              const finalWidth = Math.max(minSize, newBoundingBoxWidth);
              const finalHeight = Math.max(minSize, newBoundingBoxHeight);
 
-
-            updated.centerX = newBoundingBoxX + finalWidth / 2;
-            updated.centerY = newBoundingBoxY + finalHeight / 2;
-            updated.radiusX = finalWidth / 2;
-            updated.radiusY = finalHeight / 2;
-
-
-        } else if (updated.type === "pencil") {
-             // Resizing a pencil stroke is more complex. A simple approach is scaling all points.
-            const initialBoundingBox = this.getShapeBoundingBox(this.initialShapeState);
-            const { x: initialBx, y: initialBy, width: initialBw, height: initialBh } = initialBoundingBox;
-
-            if (initialBw === 0 || initialBh === 0) return; // Prevent division by zero
-
-             // Calculate scale factors based on change from initial click relative to bounding box
-            const scaleX = 1 + (currentX - this.startX) / initialBw;
-            const scaleY = 1 + (currentY - this.startY) / initialBh;
-
-             // Apply uniform scale based on the handle
-             let scale = 1;
-            switch (this.resizeHandle) {
-                case 'topLeft':
-                case 'bottomRight':
-                    scale = Math.min(scaleX, scaleY);
-                    break;
-                case 'topRight':
-                case 'bottomLeft':
-                     scale = Math.min(scaleX, scaleY); // Could be different logic for these corners
-                    break;
-                 // Removed midpoint handle cases
-            }
-
-             // Ensure scale is not too small
-             const minScale = 0.01; // Allow for very small scaling
-             if(scale < minScale) scale = minScale;
+            shapeToResize.centerX = newBoundingBoxX + finalWidth / 2;
+            shapeToResize.centerY = newBoundingBoxY + finalHeight / 2;
+            shapeToResize.radiusX = finalWidth / 2;
+            shapeToResize.radiusY = finalHeight / 2;
 
 
-            updated.points = updated.points.map(p => {
-                 // Scale points relative to the top-left of the initial bounding box
-                const relativeX = p.x - initialBx;
-                const relativeY = p.y - initialBy;
-                return {
-                    x: initialBx + relativeX * scale,
-                    y: initialBy + relativeY * scale
-                };
-            });
+        } else if (shapeToResize.type === "line" || shapeToResize.type === "arrow") {
+             const initialLineArrowState = this.initialShapeState as Extract<Shape, { type: 'line' | 'arrow' }>;
+
+             shapeToResize.x2 = initialLineArrowState.x2 + dx;
+             shapeToResize.y2 = initialLineArrowState.y2 + dy;
         }
 
-        // Update the shape in the existingShapes array
-        const index = this.existingShapes.findIndex(s => s.id === updated.id);
-        if (index !== -1) {
-             this.existingShapes[index] = updated;
-        }
+        this.selectedShape = shapeToResize;
 
-        // Update the selectedShape reference to the modified object
-        this.selectedShape = updated;
-
-        this.ClearCanvas(); // Redraw to show the resized shape
+        this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(this.selectedShape) }));
+        this.ClearCanvas();
     }
 
 
@@ -645,52 +768,85 @@ export class Game {
         this.startY = e.clientY;
 
         if (this.selectedTool === "select") {
+             // Disable text editing when clicking anywhere in select mode
+             this.disableTextEditing();
+
             const shape = this.findShapeAt(e.clientX, e.clientY);
 
             if (this.isResizing) {
-                 // If we are already resizing, no need to re-calculate and return
                  return;
             }
 
             if (shape) {
-                // If a shape is found, check if a resize handle was clicked
+                 // If clicking on a text shape, enable text editing
+                if (shape.type === 'text') {
+                    this.enableTextEditing(shape, this.existingShapes.indexOf(shape));
+                    this.selectedShape = shape;
+                     this.ClearCanvas();
+                    return;
+                }
+
                 const handle = this.getResizeHandleAt(e.clientX, e.clientY, shape);
                 if (handle) {
                     this.selectedShape = shape;
                     this.isResizing = true;
                     this.resizeHandle = handle;
-                    this.initialShapeState = JSON.parse(JSON.stringify(shape)); // Store initial state
-                     // startX and startY are already set to the click position
+                    this.initialShapeState = JSON.parse(JSON.stringify(shape));
                 } else {
-                    // If a shape is clicked but not on a handle, start moving
                     this.selectedShape = shape;
                     this.isMoving = true;
-                     // Calculate offset based on the specific shape type
                     if (shape.type === "rect") {
                         this.moveOffsetX = e.clientX - shape.x;
                         this.moveOffsetY = e.clientY - shape.y;
-                    } else if (shape.type === "circle") { // Still type "circle"
+                    } else if (shape.type === "circle") {
                         this.moveOffsetX = e.clientX - shape.centerX;
                         this.moveOffsetY = e.clientY - shape.centerY;
                     } else if (shape.type === "pencil") {
-                         // For pencil, use the first point for offset calculation
-                         //@ts-ignore
-                        this.moveOffsetX = e.clientX - shape.points[0].x;
-                         //@ts-ignore
-                        this.moveOffsetY = e.clientY - shape.points[0].y;
-                    }
+                         const boundingBox = this.getShapeBoundingBox(shape);
+                        this.moveOffsetX = e.clientX - boundingBox.x;
+                        this.moveOffsetY = e.clientY - boundingBox.y;
+                    } else if (shape.type === "line" || shape.type === "arrow") {
+                         this.moveOffsetX = e.clientX - shape.x1;
+                         this.moveOffsetY = e.clientY - shape.y1;
+                    } 
                 }
             } else {
-                // If no shape is clicked, clear selection
                 this.selectedShape = null;
+                 this.canvas.style.cursor = 'default';
+                 this.disableTextEditing();
             }
-            this.ClearCanvas(); // Redraw to show selection box or remove it
-        } else if (this.selectedTool === "pencil") {
+            this.ClearCanvas();
+        } else if (this.selectedTool === "pencil" || this.selectedTool === "eraser") {
             this.currentPoints = [{ x: e.clientX, y: e.clientY }];
-        } else if (this.selectedTool === "rect" || this.selectedTool === "circle") {
-             // Initialize drawing for rect or circle (ellipse)
-             this.ClearCanvas(); // Clear canvas to show temporary drawing
+             if (this.selectedTool === "pencil") {
+                 this.drawingShapeId = crypto.randomUUID();
+             }
+        } else if (this.selectedTool === "rect" || this.selectedTool === "circle" || this.selectedTool === "line" || this.selectedTool === "arrow") {
+             this.ClearCanvas();
              this.applyDrawingStylesForTemporaryDrawing(true);
+             this.drawingShapeId = crypto.randomUUID();
+        } else if (this.selectedTool === "text") {
+             this.disableTextEditing();
+             const newTextShape: Extract<Shape, { type: 'text' }> = {
+                type: 'text',
+                x: e.clientX,
+                y: e.clientY,
+                text: '',
+                fontSize: this.drawingProperties.strokeWidth * 2 > 8 ? this.drawingProperties.strokeWidth * 2 : 8,
+                fontFamily: this.defaultFontFamily,
+                color: this.drawingProperties.strokeColor || this.defaultTextColor,
+                opacity: this.drawingProperties.opacity,
+                textAlign: 'left',
+                textBaseline: 'top',
+                id: crypto.randomUUID(),
+                strokeColor: this.drawingProperties.strokeColor,
+                strokeWidth: this.drawingProperties.strokeWidth,
+                fillColor: 'transparent',
+             };
+             this.existingShapes.push(newTextShape);
+             this.selectedShape = newTextShape;
+             this.ClearCanvas();
+             this.enableTextEditing(newTextShape, this.existingShapes.length - 1);
         }
     }
 
@@ -700,7 +856,6 @@ export class Game {
         if (this.selectedTool === "select") {
             if (this.isMoving) {
                 this.isMoving = false;
-                 // Send the final position after moving
                  if(this.selectedShape){
                      this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(this.selectedShape) }));
                  }
@@ -708,108 +863,150 @@ export class Game {
                 this.isResizing = false;
                 this.resizeHandle = null;
                 this.initialShapeState = null;
-                 // Send the final state after resizing (already sent on mousemove, but sending again ensures the very last position is captured)
                  if(this.selectedShape){
                     this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(this.selectedShape) }));
                  }
             }
-            // No need to call ClearCanvas here, MouseMoveHandler for moving/resizing already clears and redraws
-            // If no shape was moved or resized, and a shape was selected, the selection remains.
-             // If no shape was selected, ClearCanvas was called in MouseDownHandler
+             this.canvas.style.cursor = 'default';
             return;
         }
 
-        const width = e.clientX - this.startX;
-        const height = e.clientY - this.startY;
-
-        let shape: Shape | null = null;
-
-        // Use drawingProperties for the new shape being created
-        const newShapeStyle: BaseShapeStyle = {
-            strokeColor: this.drawingProperties.strokeColor,
-            strokeWidth: this.drawingProperties.strokeWidth,
-            fillColor: this.drawingProperties.fillColor,
-            opacity: this.drawingProperties.opacity,
-            id: crypto.randomUUID()
-        };
-
-
-        if (this.selectedTool === "pencil") {
-            if (this.currentPoints.length < 2) {
-                this.currentPoints = []; // Clear points if not enough to form a line
-                this.ClearCanvas(); // Clear any temporary drawing
-                return;
-            }
-            shape = {
-                type: "pencil",
-                points: [...this.currentPoints],
-                ...newShapeStyle
-            };
-            this.currentPoints = [];
-        } else if (this.selectedTool === "rect") {
-             // Ensure positive width and height for rect creation
-             const x = width > 0 ? this.startX : e.clientX;
-             const y = height > 0 ? this.startY : e.clientY;
-             const w = Math.abs(width);
-             const h = Math.abs(height);
-
-             // Only create shape if it has a size
-             if (w > 0 && h > 0) {
-                shape = {
-                    type: "rect",
-                    x: x,
-                    y: y,
-                    width: w,
-                    height: h,
-                     cornerRadius: this.defaultCornerRadius, // *** CHANGE: Add default cornerRadius
-                    ...newShapeStyle
-                };
-             }
-        } else if (this.selectedTool === "circle") { // Still type "circle"
-             // Calculate center and radii for ellipse creation
-            const centerX = this.startX + width / 2;
-            const centerY = this.startY + height / 2;
-            const radiusX = Math.abs(width) / 2; // Use half the width of the bounding box as radiusX
-            const radiusY = Math.abs(height) / 2; // Use half the height of the bounding box as radiusY
-
-
-             // Only create shape if it has a valid size (at least one radius > 0)
-            if (radiusX > 0 || radiusY > 0) {
-                shape = {
-                    type: "circle", // Still type "circle"
-                    centerX,
-                    centerY,
-                    radiusX, // Added radiusX
-                    radiusY, // Added radiusY
-                    ...newShapeStyle
-                };
-            }
+        if (this.selectedTool === "eraser") {
+             this.currentPoints = [];
+            this.ClearCanvas();
+            return;
         }
 
-        if (shape) {
-            this.existingShapes.push(shape);
-            this.socket.send(JSON.stringify({ type: "chat", message: JSON.stringify(shape), roomId: this.roomId }));
-            this.ClearCanvas(); // Redraw with the new shape added
-        } else {
-             // If no shape was created (e.g., a single click or zero-size shape), just redraw to clear temporary drawing
-            this.ClearCanvas();
+        if ((this.selectedTool === "rect" || this.selectedTool === "circle" || this.selectedTool === "pencil" || this.selectedTool === "line" || this.selectedTool === "arrow") && this.drawingShapeId) {
+            const width = e.clientX - this.startX;
+            const height = e.clientY - this.startY;
+
+            let shape: Shape | null = null;
+            const newShapeStyle: BaseShapeStyle = {
+                strokeColor: this.drawingProperties.strokeColor,
+                strokeWidth: this.drawingProperties.strokeWidth,
+                fillColor: this.drawingProperties.fillColor,
+                opacity: this.drawingProperties.opacity,
+                id: this.drawingShapeId || crypto.randomUUID()
+            };
+
+
+            if (this.selectedTool === "pencil") {
+                if (this.currentPoints.length < 2) {
+                    this.currentPoints = [];
+                    this.ClearCanvas();
+                    this.drawingShapeId = null;
+                    return;
+                }
+                shape = {
+                    type: "pencil",
+                    points: [...this.currentPoints],
+                    ...newShapeStyle
+                };
+                this.currentPoints = [];
+            } else if (this.selectedTool === "rect") {
+                 const x = width > 0 ? this.startX : e.clientX;
+                 const y = height > 0 ? this.startY : e.clientY;
+                 const w = Math.abs(width);
+                 const h = Math.abs(height);
+
+                 if (w > 0 && h > 0) {
+                    shape = {
+                        type: "rect",
+                        x: x,
+                        y: y,
+                        width: w,
+                        height: h,
+                         cornerRadius: this.defaultCornerRadius,
+                        ...newShapeStyle
+                    };
+                 }
+            } else if (this.selectedTool === "circle") {
+                const centerX = this.startX + width / 2;
+                const centerY = this.startY + height / 2;
+                const radiusX = Math.abs(width) / 2;
+                const radiusY = Math.abs(height) / 2;
+
+
+                if (radiusX > 0 || radiusY > 0) {
+                    shape = {
+                        type: "circle",
+                        centerX,
+                        centerY,
+                        radiusX,
+                        radiusY,
+                        ...newShapeStyle
+                    };
+                }
+            } else if (this.selectedTool === "line") {
+                 if (Math.abs(width) > 5 || Math.abs(height) > 5) {
+                     shape = {
+                         type: "line",
+                         x1: this.startX,
+                         y1: this.startY,
+                         x2: e.clientX,
+                         y2: e.clientY,
+                         ...newShapeStyle
+                     };
+                 }
+            } else if (this.selectedTool === "arrow") {
+                 if (Math.abs(width) > 5 || Math.abs(height) > 5) {
+                     shape = {
+                         type: "arrow",
+                         x1: this.startX,
+                         y1: this.startY,
+                         x2: e.clientX,
+                         y2: e.clientY,
+                         arrowheadSize: this.defaultArrowheadSize,
+                         ...newShapeStyle
+                     };
+                 }
+            }
+
+
+            if (shape) {
+                 const existingIndex = this.existingShapes.findIndex(s => s.id === shape!.id);
+                 if (existingIndex !== -1) {
+                     this.existingShapes[existingIndex] = shape;
+                 } else {
+                     this.existingShapes.push(shape);
+                 }
+
+                this.socket.send(JSON.stringify({ type: "chat", message: JSON.stringify(shape), roomId: this.roomId }));
+                this.ClearCanvas();
+            } else {
+                this.ClearCanvas();
+            }
+             this.drawingShapeId = null;
         }
     }
 
     MouseMoveHandler = (e: MouseEvent) => {
         if (!this.clicked) {
-             // Update cursor style when hovering over a resize handle
-            if (this.selectedTool === 'select' && this.selectedShape) {
-                const handle = this.getResizeHandleAt(e.clientX, e.clientY, this.selectedShape);
-                if (handle) {
-                    this.setCursorStyle(handle);
-                } else if (this.isPointInShape(e.clientX, e.clientY, this.selectedShape)) {
-                    this.canvas.style.cursor = 'move'; // Cursor for moving
-                } else {
-                    this.canvas.style.cursor = 'default'; // Default cursor
+            if (this.selectedTool === 'select') {
+                const shapeAtMouse = this.findShapeAt(e.clientX, e.clientY);
+                if (this.selectedShape && this.selectedShape.id === shapeAtMouse?.id) {
+                    const handle = this.getResizeHandleAt(e.clientX, e.clientY, this.selectedShape);
+                    if (handle) {
+                        this.setCursorStyle(handle);
+                    } else if (this.isPointInShape(e.clientX, e.clientY, this.selectedShape)) {
+                         this.canvas.style.cursor = 'move';
+                    } else {
+                        this.canvas.style.cursor = 'default';
+                    }
+                } else if (shapeAtMouse && this.selectedTool === 'select') {
+                    this.canvas.style.cursor = 'pointer';
                 }
-            } else {
-                 this.canvas.style.cursor = 'default'; // Default cursor when no shape is selected or a drawing tool is active
+                else {
+                     this.canvas.style.cursor = 'default';
+                }
+            } else if (this.selectedTool === 'eraser' || this.selectedTool === 'pencil' || this.selectedTool === 'line' || this.selectedTool === 'arrow') {
+                 this.canvas.style.cursor = 'crosshair';
+            } else if (this.selectedTool === 'text') {
+                 this.canvas.style.cursor = 'text';
+            }
+            else {
+                 this.canvas.style.cursor = 'default';
             }
             return;
         }
@@ -818,78 +1015,339 @@ export class Game {
             if (this.isMoving && this.selectedShape) {
                 const dx = e.clientX - this.startX;
                 const dy = e.clientY - this.startY;
-                 // Move the shape visually immediately
                 this.moveSelectedShape(dx, dy);
                 this.startX = e.clientX;
                 this.startY = e.clientY;
-                // Send update over socket during move for smoother experience - Already done in moveSelectedShape
-                return; // Exit to prevent drawing temporary shapes while moving
+                return;
             } else if (this.isResizing && this.selectedShape && this.initialShapeState && this.resizeHandle) {
                  this.resizeSelectedShape(e.clientX, e.clientY);
-                 // Send update over socket continuously during resizing
-                 this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(this.selectedShape) }));
-                return; // Exit to prevent drawing temporary shapes while resizing
+                return;
             }
+        } else if (this.selectedTool === "eraser") {
+             this.currentPoints.push({ x: e.clientX, y: e.clientY });
+
+             const shapeToErase = this.findShapeAt(e.clientX, e.clientY);
+
+             if (shapeToErase) {
+                 this.existingShapes = this.existingShapes.filter(shape => shape.id !== shapeToErase.id);
+                 if (this.selectedShape && this.selectedShape.id === shapeToErase.id) {
+                      this.selectedShape = null;
+                      this.disableTextEditing();
+                 }
+                 this.ClearCanvas();
+
+                 this.socket.send(JSON.stringify({ type: "eraseShape", roomId: this.roomId, shape: JSON.stringify(shapeToErase) }));
+             }
+
+
+             this.ctx.save();
+             this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+             this.ctx.lineWidth = this.drawingProperties.strokeWidth + 5;
+             this.ctx.lineJoin = "round";
+             this.ctx.lineCap = "round";
+             this.ctx.beginPath();
+             if (this.currentPoints.length > 1) {
+                //@ts-ignore
+                 this.ctx.moveTo(this.currentPoints[this.currentPoints.length - 2].x, this.currentPoints[this.currentPoints.length - 2].y);
+                 //@ts-ignore
+                 this.ctx.lineTo(this.currentPoints[this.currentPoints.length - 1].x, this.currentPoints[this.currentPoints.length - 1].y);
+             } else if (this.currentPoints.length === 1) {
+                  //@ts-ignore
+                  this.ctx.arc(this.currentPoints[0].x, this.currentPoints[0].y, this.ctx.lineWidth / 2, 0, 2 * Math.PI);
+             }
+             this.ctx.stroke();
+             this.ctx.restore();
+             return;
         }
 
 
-         // Only draw temporary shape if a drawing tool is selected and not resizing or moving
-        if (this.selectedTool === "rect" || this.selectedTool === "circle" || this.selectedTool === "pencil") { // Still checking for "circle" tool
-            this.ClearCanvas(); // Clear previous temporary drawing and redraw existing shapes
+        if ((this.selectedTool === "rect" || this.selectedTool === "circle" || this.selectedTool === "pencil" || this.selectedTool === "line" || this.selectedTool === "arrow") && this.drawingShapeId) {
+             this.ClearCanvas();
 
             const width = e.clientX - this.startX;
             const height = e.clientY - this.startY;
 
-             // Apply current drawing styles for the temporary shape
             this.applyDrawingStylesForTemporaryDrawing(true);
 
+            let currentShape: Shape | null = null;
 
             if (this.selectedTool === "rect") {
-                 // *** CHANGE: Draw temporary rounded rectangle with default corner radius using ctx.roundRect
-                 const cornerRadius = this.defaultCornerRadius; // Use a default for temporary drawing
+                 const cornerRadius = this.defaultCornerRadius;
                  this.ctx.beginPath();
                 this.ctx.roundRect(this.startX, this.startY, width, height, cornerRadius);
                 this.ctx.stroke();
                  if (this.ctx.fillStyle !== 'transparent') {
                     this.ctx.fill();
                 }
-            } else if (this.selectedTool === "circle") { // Drawing an ellipse when tool is "circle"
+                 currentShape = {
+                    type: "rect",
+                    x: this.startX,
+                    y: this.startY,
+                    width: width,
+                    height: height,
+                    cornerRadius: cornerRadius,
+                    strokeColor: this.drawingProperties.strokeColor,
+                    strokeWidth: this.drawingProperties.strokeWidth,
+                    fillColor: this.drawingProperties.fillColor,
+                    opacity: this.drawingProperties.opacity,
+                    id: this.drawingShapeId
+                 };
+            } else if (this.selectedTool === "circle") {
                 const centerX = this.startX + width / 2;
                 const centerY = this.startY + height / 2;
-                const radiusX = Math.abs(width) / 2; // Use half the width of the bounding box as radiusX
-                const radiusY = Math.abs(height) / 2; // Use half the height of the bounding box as radiusY
+                const radiusX = Math.abs(width) / 2;
+                const radiusY = Math.abs(height) / 2;
                 this.ctx.beginPath();
-                // Draw an ellipse
                 this.ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
                 this.ctx.stroke();
                  if (this.ctx.fillStyle !== 'transparent') {
                     this.ctx.fill();
                 }
                 this.ctx.closePath();
+                 currentShape = {
+                    type: "circle",
+                    centerX: centerX,
+                    centerY: centerY,
+                    radiusX: radiusX,
+                    radiusY: radiusY,
+                    strokeColor: this.drawingProperties.strokeColor,
+                    strokeWidth: this.drawingProperties.strokeWidth,
+                    fillColor: this.drawingProperties.fillColor,
+                    opacity: this.drawingProperties.opacity,
+                    id: this.drawingShapeId
+                 };
             } else if (this.selectedTool === "pencil") {
                 this.currentPoints.push({ x: e.clientX, y: e.clientY });
-                 // Use drawingProperties for pencil tool during drawing
                 this.ctx.strokeStyle = this.drawingProperties.strokeColor;
                 this.ctx.lineWidth = this.drawingProperties.strokeWidth;
                 this.ctx.lineJoin = "round";
                 this.ctx.lineCap = "round";
 
                 this.ctx.beginPath();
-                 //@ts-ignore
-                this.ctx.moveTo(this.currentPoints[0].x, this.currentPoints[0].y);
-                for (let i = 1; i < this.currentPoints.length; i++) {
-                     //@ts-ignore
-                    this.ctx.lineTo(this.currentPoints[i].x, this.currentPoints[i].y);
-                }
+                 if (this.currentPoints.length > 1) {
+                    //@ts-ignore
+                    this.ctx.moveTo(this.currentPoints[this.currentPoints.length - 2].x, this.currentPoints[this.currentPoints.length - 2].y);
+                    //@ts-ignore
+                    this.ctx.lineTo(this.currentPoints[this.currentPoints.length - 1].x, this.currentPoints[this.currentPoints.length - 1].y);
+                 } else if (this.currentPoints.length === 1) {
+                    //@ts-ignore
+                      this.ctx.arc(this.currentPoints[0].x, this.currentPoints[0].y, this.ctx.lineWidth / 2, 0, 2 * Math.PI);
+                 }
                 this.ctx.stroke();
                 this.ctx.closePath();
-                 // Restore default line width after drawing temporary pencil line
-                // this.ctx.lineWidth = this.drawingProperties.strokeWidth; // Redundant if applyDrawingStylesForTemporaryDrawing is used
+                 currentShape = {
+                    type: "pencil",
+                    points: [...this.currentPoints],
+                    strokeColor: this.drawingProperties.strokeColor,
+                    strokeWidth: this.drawingProperties.strokeWidth,
+                    fillColor: this.drawingProperties.fillColor,
+                    opacity: this.drawingProperties.opacity,
+                    id: this.drawingShapeId
+                 };
+            } else if (this.selectedTool === "line") {
+                 currentShape = {
+                     type: "line",
+                     x1: this.startX,
+                     y1: this.startY,
+                     x2: e.clientX,
+                     y2: e.clientY,
+                     strokeColor: this.drawingProperties.strokeColor,
+                     strokeWidth: this.drawingProperties.strokeWidth,
+                     fillColor: this.drawingProperties.fillColor,
+                     opacity: this.drawingProperties.opacity,
+                     id: this.drawingShapeId
+                 };
+            } else if (this.selectedTool === "arrow") {
+                 currentShape = {
+                     type: "arrow",
+                     x1: this.startX,
+                     y1: this.startY,
+                     x2: e.clientX,
+                     y2: e.clientY,
+                     arrowheadSize: this.defaultArrowheadSize,
+                     strokeColor: this.drawingProperties.strokeColor,
+                     strokeWidth: this.drawingProperties.strokeWidth,
+                     fillColor: this.drawingProperties.fillColor,
+                     opacity: this.drawingProperties.opacity,
+                     id: this.drawingShapeId
+                 };
+            }
+
+
+            if (currentShape) {
+                 this.socket.send(JSON.stringify({ type: "streamingShape", roomId: this.roomId, shape: JSON.stringify(currentShape) }));
+
+                 const existingIndex = this.existingShapes.findIndex(s => s.id === currentShape!.id);
+                 if (existingIndex !== -1) {
+                     this.existingShapes[existingIndex] = currentShape;
+                 } else {
+                     this.existingShapes.push(currentShape);
+                 }
             }
         }
     }
 
-    // Set cursor style based on the resize handle
+    // --- Text Editing Methods ---
+    private enableTextEditing(shape: Extract<Shape, { type: 'text' }>, index: number) {
+        if (this.isEditingText) {
+            this.disableTextEditing();
+        }
+
+        this.isEditingText = true;
+        this.editingTextShape = { ...shape, index };
+
+        this.textInput = document.createElement('input');
+        this.textInput.type = 'text';
+        this.textInput.value = shape.text;
+        this.textInput.style.position = 'absolute';
+        this.textInput.style.fontSize = `${shape.fontSize}px`;
+        this.textInput.style.fontFamily = shape.fontFamily;
+        this.textInput.style.color = shape.color;
+        this.textInput.style.opacity = shape.opacity.toString();
+        this.textInput.style.background = 'transparent';
+        this.textInput.style.border = '1px dashed rgba(0, 255, 255, 0.5)';
+        this.textInput.style.outline = 'none';
+        this.textInput.style.padding = '0';
+        this.textInput.style.margin = '0';
+        this.textInput.style.lineHeight = 'normal'; // Prevent extra spacing
+        this.textInput.style.boxSizing = 'content-box'; // Ensure padding doesn't affect size
+        this.textInput.style.zIndex = '100'; // Ensure the input is on top
+        this.textInput.style.whiteSpace = 'pre'; // Preserve whitespace for accurate measurement
+
+        // Set initial position and size based on text metrics and scale
+        // Append before positioning to ensure offsetWidth/Height are available if needed (though using measureText)
+        this.canvas.parentElement?.appendChild(this.textInput);
+        this.updateTextInputPosition(shape);
+
+
+        this.textInput.addEventListener('input', this.handleTextInput);
+        this.textInput.addEventListener('blur', this.handleTextBlur);
+        this.textInput.addEventListener('keydown', this.handleTextKeydown);
+
+
+        this.textInput.focus();
+    }
+
+    private disableTextEditing() {
+        if (this.isEditingText && this.textInput) {
+            this.textInput.removeEventListener('input', this.handleTextInput);
+            this.textInput.removeEventListener('blur', this.handleTextBlur);
+            this.textInput.removeEventListener('keydown', this.handleTextKeydown);
+
+            if (this.textInput.parentElement) {
+                this.textInput.parentElement.removeChild(this.textInput);
+            }
+
+            this.isEditingText = false;
+            this.editingTextShape = null;
+            this.textInput = null;
+            this.ClearCanvas();
+        }
+    }
+
+    private handleTextInput = () => {
+        if (this.isEditingText && this.editingTextShape && this.textInput) {
+            const updatedText = this.textInput.value;
+            this.editingTextShape.text = updatedText;
+
+            this.existingShapes[this.editingTextShape.index] = this.editingTextShape;
+
+            this.socket.send(JSON.stringify({ type: "streamingShape", roomId: this.roomId, shape: JSON.stringify(this.editingTextShape) }));
+
+            this.ClearCanvas();
+             this.updateTextInputPosition(this.editingTextShape);
+        }
+    }
+
+    private handleTextBlur = () => {
+        if (this.isEditingText && this.editingTextShape) {
+             // If the text is empty, remove the shape
+             if (this.editingTextShape.text.trim() === '') {
+                 this.existingShapes.splice(this.editingTextShape.index, 1);
+                 this.socket.send(JSON.stringify({ type: "eraseShape", roomId: this.roomId, shape: JSON.stringify(this.editingTextShape) }));
+             } else {
+                 // Send the final shape data if text is not empty
+                 this.socket.send(JSON.stringify({ type: "chat", message: JSON.stringify(this.editingTextShape), roomId: this.roomId }));
+             }
+        }
+        this.disableTextEditing();
+    }
+
+     private handleTextKeydown = (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.handleTextBlur();
+        }
+     }
+
+    private handleCanvasResize = () => {
+         // Recalculate and update text input position and size on canvas resize/zoom
+         if (this.isEditingText && this.editingTextShape) {
+             // Re-get the canvas scale as it might have changed
+             const dpr = window.devicePixelRatio || 1;
+             const width = window.innerWidth;
+             const height = window.innerHeight;
+             const canvasWidth = this.canvas.width / dpr;
+             const canvasHeight = this.canvas.height / dpr;
+             // Assuming scale is managed externally and applied via context transform
+             // If scale is managed internally, use this.scale directly.
+             // For now, let's rely on the internally managed this.scale.
+
+             this.updateTextInputPosition(this.editingTextShape);
+         }
+    }
+
+
+    private updateTextInputPosition(shape: Extract<Shape, { type: 'text' }>) {
+        if (this.textInput) {
+             this.ctx.save(); // Save context before changing font
+             this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
+             const metrics = this.ctx.measureText(shape.text);
+             this.ctx.restore(); // Restore context
+
+             const actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+
+            let offsetX = 0;
+            let offsetY = 0;
+            if (shape.textAlign === 'center') {
+                offsetX = metrics.width / 2;
+            } else if (shape.textAlign === 'right' || shape.textAlign === 'end') {
+                offsetX = metrics.width;
+            }
+
+            if (shape.textBaseline === 'middle') {
+                offsetY = actualHeight / 2;
+            } else if (shape.textBaseline === 'bottom' || shape.textBaseline === 'alphabetic' || shape.textBaseline === 'ideographic') {
+                offsetY = actualHeight;
+            }
+
+             // Apply canvas offset and scale to the input position
+             const canvasRect = this.canvas.getBoundingClientRect();
+             this.textInput.style.left = `${canvasRect.left + (shape.x - offsetX) * this.scale}px`;
+             this.textInput.style.top = `${canvasRect.top + (shape.y - offsetY) * this.scale}px`;
+
+             // Apply scale to the input element's size
+             // Set input width to match the measured text width
+             this.textInput.style.width = `${metrics.width * this.scale}px`;
+             // Set input height to match the measured text height
+             this.textInput.style.height = `${actualHeight * this.scale}px`;
+
+             // Ensure the input element's transform scale matches the canvas scale
+             this.textInput.style.transform = `scale(${this.scale})`;
+             this.textInput.style.transformOrigin = 'top left'; // Ensure consistent scaling origin
+
+             // Add some padding to the input box for better visual appearance and hit area
+             const inputPadding = 2;
+             this.textInput.style.padding = `${inputPadding}px`;
+             this.textInput.style.width = `${(metrics.width + 2 * inputPadding) * this.scale}px`;
+             this.textInput.style.height = `${(actualHeight + 2 * inputPadding) * this.scale}px`;
+             // Adjust position slightly to account for padding
+             this.textInput.style.left = `${canvasRect.left + (shape.x - offsetX) * this.scale - inputPadding * this.scale}px`;
+             this.textInput.style.top = `${canvasRect.top + (shape.y - offsetY) * this.scale - inputPadding * this.scale}px`;
+        }
+    }
+
+
     private setCursorStyle(handle: ResizeHandle) {
         switch (handle) {
             case 'topLeft':
@@ -900,32 +1358,27 @@ export class Game {
             case 'bottomLeft':
                 this.canvas.style.cursor = 'nesw-resize';
                 break;
-             // Removed midpoint handle cursor styles
             default:
                 this.canvas.style.cursor = 'default';
         }
     }
 
-     // Handle mouse leaving the canvas
     private MouseOutHandler = () => {
-        // If currently moving or resizing, treat mouseout as mouseup to finalize the operation
         if (this.clicked) {
-            // Simulate mouseup event
             const mouseUpEvent = new MouseEvent('mouseup', {
-                clientX: this.startX, // Use last known position
+                clientX: this.startX,
                 clientY: this.startY,
-                button: 0, // Assume left click
-                 // Include other relevant properties if needed
+                button: 0,
             });
             this.MouseUpHandler(mouseUpEvent);
         }
-        this.canvas.style.cursor = 'default';
+         this.canvas.style.cursor = 'default';
     }
 
-    // *** CHANGE: New method to export selected shape as SVG
+
     exportSelectedShapeAsSvg(): string | null {
         if (!this.selectedShape) {
-            return null; // No shape selected
+            return null;
         }
 
         const shape = this.selectedShape;
@@ -934,21 +1387,19 @@ export class Game {
         const stroke = `stroke="${shape.strokeColor}"`;
         const strokeWidth = `stroke-width="${shape.strokeWidth}"`;
         const fill = shape.fillColor !== 'transparent' ? `fill="${shape.fillColor}"` : 'fill="none"';
-        const opacity = `fill-opacity="${shape.opacity}" stroke-opacity="${shape.opacity}"`; // Apply opacity to both fill and stroke
+        const strokeOpacity = `stroke-opacity="${shape.opacity}"`;
+        const fillOpacity = shape.fillColor !== 'transparent' ? `fill-opacity="${shape.opacity}"` : '';
 
 
         if (shape.type === "rect") {
-            // For rounded rectangles, use rx and ry attributes. Assuming uniform corner radius.
             const rx = shape.cornerRadius;
             const ry = shape.cornerRadius;
-            svgElement = `<rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" rx="${rx}" ry="${ry}" ${stroke} ${strokeWidth} ${fill} ${opacity}/>`;
+            svgElement = `<rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" rx="${rx}" ry="${ry}" ${stroke} ${strokeWidth} ${fill} ${strokeOpacity} ${fillOpacity}/>`;
         } else if (shape.type === "circle") {
-            // For ellipses (stored as circle type), use cx, cy, rx, ry
-            svgElement = `<ellipse cx="${shape.centerX}" cy="${shape.centerY}" rx="${Math.abs(shape.radiusX)}" ry="${Math.abs(shape.radiusY)}" ${stroke} ${strokeWidth} ${fill} ${opacity}/>`;
+            svgElement = `<ellipse cx="${shape.centerX}" cy="${shape.centerY}" rx="${Math.abs(shape.radiusX)}" ry="${Math.abs(shape.radiusY)}" ${stroke} ${strokeWidth} ${fill} ${strokeOpacity} ${fillOpacity}/>`;
         } else if (shape.type === "pencil") {
-            // Convert points to SVG path data (d attribute)
             if (shape.points.length < 1) {
-                return null; // Cannot export an empty pencil path
+                return null;
             }
             const pathData = shape.points.map((p, index) => {
                 if (index === 0) {
@@ -957,12 +1408,50 @@ export class Game {
                     return `L ${p.x} ${p.y}`;
                 }
             }).join(' ');
-
-            // Pencil strokes usually don't have a fill
             const pencilFill = 'fill="none"';
 
-            svgElement = `<path d="${pathData}" ${stroke} ${strokeWidth} ${pencilFill} ${opacity}/>`;
+            svgElement = `<path d="${pathData}" ${stroke} ${strokeWidth} ${pencilFill} ${strokeOpacity}/>`;
+        } else if (shape.type === "line") {
+             svgElement = `<line x1="${shape.x1}" y1="${shape.y1}" x2="${shape.x2}" y2="${shape.y2}" ${stroke} ${strokeWidth} ${strokeOpacity}/>`;
+        } else if (shape.type === "arrow") {
+             const lineSvg = `<line x1="${shape.x1}" y1="${shape.y1}" x2="${shape.x2}" y2="${shape.y2}" ${stroke} ${strokeWidth} ${strokeOpacity}/>`;
+
+             const angle = Math.atan2(shape.y2 - shape.y1, shape.x2 - shape.x1);
+             const arrowheadSize = shape.arrowheadSize;
+
+             const p1x = shape.x2 + arrowheadSize * Math.cos(angle - Math.PI / 6);
+             const p1y = shape.y2 + arrowheadSize * Math.sin(angle - Math.PI / 6);
+             const p2x = shape.x2;
+             const p2y = shape.y2;
+             const p3x = shape.x2 + arrowheadSize * Math.cos(angle + Math.PI / 6);
+             const p3y = shape.y2 + arrowheadSize * Math.sin(angle + Math.PI / 6);
+
+             const arrowheadSvg = `<polygon points="${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}" fill="${shape.strokeColor}" stroke="${shape.strokeColor}" ${strokeOpacity}/>`;
+
+             svgElement = lineSvg + arrowheadSvg;
+        } else if (shape.type === "text") {
+             let x = shape.x;
+             let y = shape.y;
+             let textAnchor = 'start';
+
+             if (shape.textAlign === 'center') {
+                 textAnchor = 'middle';
+             } else if (shape.textAlign === 'right' || shape.textAlign === 'end') {
+                 textAnchor = 'end';
+             }
+
+             let dominantBaseline = 'text-before-edge';
+
+             if (shape.textBaseline === 'middle') {
+                 dominantBaseline = 'middle';
+             } else if (shape.textBaseline === 'bottom' || shape.textBaseline === 'alphabetic' || shape.textBaseline === 'ideographic') {
+                 dominantBaseline = 'alphabetic';
+             }
+
+
+             svgElement = `<text x="${x}" y="${y}" font-family="${shape.fontFamily}" font-size="${shape.fontSize}" fill="${shape.color}" fill-opacity="${shape.opacity}" text-anchor="${textAnchor}" dominant-baseline="${dominantBaseline}">${shape.text}</text>`;
         }
+
 
         return svgElement;
     }
@@ -972,7 +1461,6 @@ export class Game {
         this.canvas.addEventListener('mousedown', this.MouseDownHandler);
         this.canvas.addEventListener("mouseup", this.MouseUpHandler);
         this.canvas.addEventListener("mousemove", this.MouseMoveHandler);
-         // Add mouseout to reset cursor if needed when mouse leaves the canvas and finalize drawing/moving/resizing
         this.canvas.addEventListener("mouseout", this.MouseOutHandler);
     }
 }

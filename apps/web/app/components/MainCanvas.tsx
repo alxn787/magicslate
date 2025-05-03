@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./Iconbutton";
-import { Circle, EraserIcon, MouseIcon, MousePointerIcon, Pencil, Pointer, RectangleHorizontal, TextCursor, Trash, ZoomIn, ZoomOut } from "lucide-react";
+import { Circle, EraserIcon, MouseIcon, MousePointerIcon, Pencil, Pointer, RectangleHorizontal, TextCursor, Trash, ZoomIn, ZoomOut, ArrowRight, LineChart } from "lucide-react"; // Import new icons
 import { Game } from "../draw/game";
 import { SideBar, DrawingProperties } from "./Sidebar";
 
-export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut" | "select" | "eraser" | "hand" | "text";
+export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut" | "select" | "eraser" | "arrow" | "text" | "line" ;
 
 export default function MainCanvas({
   roomId,
@@ -81,15 +81,15 @@ export default function MainCanvas({
   return (
     <div className="bg-black">
       <canvas ref={canvasRef} />
-      <TopBar 
-        selectedTool={selectedTool} 
-        setSelectedTool={setSelectedTool} 
-        game={game} 
+      <TopBar
+        selectedTool={selectedTool}
+        setSelectedTool={setSelectedTool}
+        game={game}
       />
-      <SideBar 
-        properties={drawingProperties} 
-        setProperties={setDrawingProperties} 
-        game={game} 
+      <SideBar
+        properties={drawingProperties}
+        setProperties={setDrawingProperties}
+        game={game}
       />
     </div>
   );
@@ -108,6 +108,11 @@ function TopBar({
     <div className="flex justify-center gap-2 fixed top-5 left-0 right-0 p-2">
       <div className="bg-neutral-800 flex justify-center gap-2 fixed top-5 p-1 rounded-md text-xs ">
         <IconButton
+          activated={selectedTool === "select"}
+          icon={<MousePointerIcon className="text-white" />}
+          onClick={() => setSelectedTool("select")}
+        />
+        <IconButton
           activated={selectedTool === "pencil"}
           icon={<Pencil className="text-white text-2xl" />}
           onClick={() => setSelectedTool("pencil")}
@@ -123,6 +128,21 @@ function TopBar({
           onClick={() => setSelectedTool("circle")}
         />
         <IconButton
+          activated={selectedTool === "line"} // Added Line button
+          icon={<LineChart className="text-white" />} // Using LineChart icon for line
+          onClick={() => setSelectedTool("line")}
+        />
+         <IconButton
+          activated={selectedTool === "arrow"} // Added Arrow button
+          icon={<ArrowRight className="text-white" />} // Using ArrowRight icon for arrow
+          onClick={() => setSelectedTool("arrow")}
+        />
+        <IconButton
+          activated={selectedTool === "eraser"}
+          icon={<EraserIcon className="text-white" />}
+          onClick={() => setSelectedTool("eraser")}
+        />
+        <IconButton
           activated={selectedTool === "zoomIn"}
           icon={<ZoomIn className="text-white" />}
           onClick={() => setSelectedTool("zoomIn")}
@@ -133,20 +153,9 @@ function TopBar({
           onClick={() => setSelectedTool("zoomOut")}
         />
         <IconButton
-          activated={false}
+          activated={false} // Clear slate button is not a tool selection
           icon={<Trash className="text-white" />}
           onClick={() => game?.clearSlate()}
-        />
-        <IconButton
-          activated={selectedTool === "select"}
-          icon={<MousePointerIcon className="text-white" />}
-          onClick={() => setSelectedTool("select")}
-        />
-        <IconButton
-          activated={selectedTool === "eraser"}
-          icon={<EraserIcon className="text-white" />}
-          onClick={() => setSelectedTool("eraser")}
-          tooltip="Eraser"
         />
 
       </div>
