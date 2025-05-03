@@ -12,6 +12,7 @@ app.use(cors({
     methods: ["GET", "POST"],
     credentials: true
   }));
+  app.use(cors());
 
 declare global{
     namespace Express{

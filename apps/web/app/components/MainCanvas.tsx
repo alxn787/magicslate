@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./Iconbutton";
-import { Circle, EraserIcon, MouseIcon, MousePointerIcon, Pencil, Pointer, RectangleHorizontal, TextCursor, Trash, ZoomIn, ZoomOut, ArrowRight, LineChart } from "lucide-react"; // Import new icons
+import { Circle, EraserIcon, MouseIcon, MousePointerIcon, Pencil, Pointer, RectangleHorizontal, TextCursor, Trash, ZoomIn, ZoomOut, ArrowRight, LineChart, PenLine, PenLineIcon, ChartLine, Minus, LetterText } from "lucide-react"; // Import new icons
 import { Game } from "../draw/game";
 import { SideBar, DrawingProperties } from "./Sidebar";
 
@@ -79,7 +79,8 @@ export default function MainCanvas({
   }, [drawingProperties, game]);
 
   return (
-    <div className="bg-black">
+    // Added 'relative' class here to position the parent div
+    <div className="bg-white absolute">
       <canvas ref={canvasRef} />
       <TopBar
         selectedTool={selectedTool}
@@ -129,7 +130,7 @@ function TopBar({
         />
         <IconButton
           activated={selectedTool === "line"} // Added Line button
-          icon={<LineChart className="text-white" />} // Using LineChart icon for line
+          icon={<Minus className="text-white" />} // Using LineChart icon for line
           onClick={() => setSelectedTool("line")}
         />
          <IconButton
@@ -137,20 +138,15 @@ function TopBar({
           icon={<ArrowRight className="text-white" />} // Using ArrowRight icon for arrow
           onClick={() => setSelectedTool("arrow")}
         />
+         <IconButton
+          activated={selectedTool === "text"} // Added Text button
+          icon={<LetterText className="text-white" />} // Using TextCursor icon for text
+          onClick={() => setSelectedTool("text")}
+        />
         <IconButton
           activated={selectedTool === "eraser"}
           icon={<EraserIcon className="text-white" />}
           onClick={() => setSelectedTool("eraser")}
-        />
-        <IconButton
-          activated={selectedTool === "zoomIn"}
-          icon={<ZoomIn className="text-white" />}
-          onClick={() => setSelectedTool("zoomIn")}
-        />
-        <IconButton
-          activated={selectedTool === "zoomOut"}
-          icon={<ZoomOut className="text-white" />}
-          onClick={() => setSelectedTool("zoomOut")}
         />
         <IconButton
           activated={false} // Clear slate button is not a tool selection

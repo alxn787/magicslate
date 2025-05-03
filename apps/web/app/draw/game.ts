@@ -193,32 +193,6 @@ export class Game {
     }
 
 
-    zoomIn() {
-        this.scale = Math.min(this.scale * 1.2, 10);
-        this.ClearCanvas();
-         // Update text input position and size on zoom
-        if (this.isEditingText && this.editingTextShape) {
-            this.updateTextInputPosition(this.editingTextShape);
-        }
-    }
-
-    zoomOut() {
-        this.scale = Math.max(this.scale / 1.2, 0.1);
-        this.ClearCanvas();
-         // Update text input position and size on zoom
-        if (this.isEditingText && this.editingTextShape) {
-            this.updateTextInputPosition(this.editingTextShape);
-        }
-    }
-
-    resetZoom() {
-        this.scale = 1;
-        this.ClearCanvas();
-         // Update text input position and size on zoom reset
-        if (this.isEditingText && this.editingTextShape) {
-            this.updateTextInputPosition(this.editingTextShape);
-        }
-    }
 
     clearSlate() {
         this.socket.send(JSON.stringify({ type: "clearslate", roomId: this.roomId }));
