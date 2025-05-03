@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./Iconbutton";
-import { Circle, Pencil, Pointer, RectangleHorizontal, Trash, ZoomIn, ZoomOut } from "lucide-react";
+import { Circle, EraserIcon, MouseIcon, MousePointerIcon, Pencil, Pointer, RectangleHorizontal, TextCursor, Trash, ZoomIn, ZoomOut } from "lucide-react";
 import { Game } from "../draw/game";
 import { SideBar, DrawingProperties } from "./Sidebar";
 
-export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut" | "select";
+export type Tool = "circle" | "rect" | "pencil" | "zoomIn" | "zoomOut" | "select" | "eraser" | "hand" | "text";
 
 export default function MainCanvas({
   roomId,
@@ -105,7 +105,7 @@ function TopBar({
   game: Game | undefined;
 }) {
   return (
-    <div className="flex justify-center gap-2 fixed top-5 left-0 right-0 bg-black p-2">
+    <div className="flex justify-center gap-2 fixed top-5 left-0 right-0 p-2">
       <div className="bg-neutral-800 flex justify-center gap-2 fixed top-5 p-1 rounded-md text-xs ">
         <IconButton
           activated={selectedTool === "pencil"}
@@ -139,9 +139,16 @@ function TopBar({
         />
         <IconButton
           activated={selectedTool === "select"}
-          icon={<Pointer className="text-white" />}
+          icon={<MousePointerIcon className="text-white" />}
           onClick={() => setSelectedTool("select")}
         />
+        <IconButton
+          activated={selectedTool === "eraser"}
+          icon={<EraserIcon className="text-white" />}
+          onClick={() => setSelectedTool("eraser")}
+          tooltip="Eraser"
+        />
+
       </div>
     </div>
   );

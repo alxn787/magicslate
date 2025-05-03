@@ -17,6 +17,7 @@ type Shape = ({
     y: number;
     width: number;
     height: number;
+    cornerRadius: number; // *** CHANGE: Added cornerRadius
 } & BaseShapeStyle) | ({
     type: "circle"; // Still type "circle"
     centerX: number;
@@ -61,6 +62,10 @@ export class Game {
         fillColor: "transparent",
         opacity: 1
     };
+
+    // *** CHANGE: Default corner radius for new rectangles
+    private defaultCornerRadius: number = 10;
+
 
     constructor(canvas: HTMLCanvasElement, roomId: string, token: string, socket: WebSocket) {
         this.canvas = canvas;
@@ -182,9 +187,12 @@ export class Game {
             this.applyShapeStyles(this.ctx, shape);
 
             if (shape.type === "rect") {
-                this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                 // *** CHANGE: Use ctx.roundRect to draw the rectangle
+                this.ctx.beginPath();
+                this.ctx.roundRect(shape.x, shape.y, shape.width, shape.height, shape.cornerRadius);
+                this.ctx.stroke();
                 if (this.ctx.fillStyle !== 'transparent') {
-                    this.ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                     this.ctx.fill();
                 }
             } else if (shape.type === "circle") { // Still type "circle"
                 this.ctx.beginPath();
@@ -219,6 +227,7 @@ export class Game {
         this.applyDrawingStylesForTemporaryDrawing();
     }
 
+    // Method to apply drawing properties for temporary shapes drawn during mouse move
      private applyDrawingStylesForTemporaryDrawing(useFill = false) {
         this.ctx.strokeStyle = this.drawingProperties.strokeColor;
         this.ctx.lineWidth = this.drawingProperties.strokeWidth;
@@ -316,6 +325,8 @@ export class Game {
             const rectY = Math.min(shape.y, shape.y + shape.height);
             const rectWidth = Math.abs(shape.width);
             const rectHeight = Math.abs(shape.height);
+            // For rounded rectangles, this is an approximation. A more accurate check
+            // would be needed for precise hit testing within the rounded corners.
             return x >= rectX && x <= rectX + rectWidth && y >= rectY && y <= rectY + rectHeight;
         } else if (shape.type === "circle") { // Still type "circle" but using ellipse logic
             const dx = x - shape.centerX;
@@ -470,6 +481,7 @@ export class Game {
             let newY = initialY;
             let newWidth = initialWidth;
             let newHeight = initialHeight;
+             let newCornerRadius = updated.cornerRadius; // *** CHANGE: Get initial corner radius
 
             // Apply changes based on the dragged handle
             switch (this.resizeHandle) {
@@ -499,21 +511,30 @@ export class Game {
              // Prevent very small width or height, maintain minimum size
              const minSize = 5;
              if (Math.abs(newWidth) < minSize && newWidth !== 0) {
-                 newWidth = newWidth < 0 ? -minSize : minSize;
+                 newWidth = newWidth < 0 ? (newWidth / Math.abs(newWidth)) * minSize : minSize; // Corrected sign handling
              } else if (newWidth === 0) {
                  newWidth = minSize; // Prevent division by zero in bounding box calculation
              }
              if (Math.abs(newHeight) < minSize && newHeight !== 0) {
-                 newHeight = newHeight < 0 ? -minSize : minSize;
+                 newHeight = newHeight < 0 ? (newHeight / Math.abs(newHeight)) * minSize : minSize; // Corrected sign handling
              } else if (newHeight === 0) {
                  newHeight = minSize; // Prevent division by zero
              }
+
+
+             // *** CHANGE: Scale corner radius proportionally
+             const widthScale = initialWidth !== 0 ? Math.abs(newWidth) / Math.abs(initialWidth) : 1;
+             const heightScale = initialHeight !== 0 ? Math.abs(newHeight) / Math.abs(initialHeight) : 1;
+             // Use the minimum scale to avoid disproportionate rounding
+             const scale = Math.min(widthScale, heightScale);
+             newCornerRadius = updated.cornerRadius * scale;
 
 
             updated.x = newX;
             updated.y = newY;
             updated.width = newWidth;
             updated.height = newHeight;
+             updated.cornerRadius = newCornerRadius; // *** CHANGE: Update cornerRadius
 
         } else if (updated.type === "circle") { // Still type "circle" but using ellipse logic
              // Resizing an ellipse from a handle - Revised Calculation
@@ -740,6 +761,7 @@ export class Game {
                     y: y,
                     width: w,
                     height: h,
+                     cornerRadius: this.defaultCornerRadius, // *** CHANGE: Add default cornerRadius
                     ...newShapeStyle
                 };
              }
@@ -823,9 +845,13 @@ export class Game {
 
 
             if (this.selectedTool === "rect") {
-                this.ctx.strokeRect(this.startX, this.startY, width, height);
+                 // *** CHANGE: Draw temporary rounded rectangle with default corner radius using ctx.roundRect
+                 const cornerRadius = this.defaultCornerRadius; // Use a default for temporary drawing
+                 this.ctx.beginPath();
+                this.ctx.roundRect(this.startX, this.startY, width, height, cornerRadius);
+                this.ctx.stroke();
                  if (this.ctx.fillStyle !== 'transparent') {
-                    this.ctx.fillRect(this.startX, this.startY, width, height);
+                    this.ctx.fill();
                 }
             } else if (this.selectedTool === "circle") { // Drawing an ellipse when tool is "circle"
                 const centerX = this.startX + width / 2;
@@ -894,6 +920,51 @@ export class Game {
             this.MouseUpHandler(mouseUpEvent);
         }
         this.canvas.style.cursor = 'default';
+    }
+
+    // *** CHANGE: New method to export selected shape as SVG
+    exportSelectedShapeAsSvg(): string | null {
+        if (!this.selectedShape) {
+            return null; // No shape selected
+        }
+
+        const shape = this.selectedShape;
+        let svgElement = '';
+
+        const stroke = `stroke="${shape.strokeColor}"`;
+        const strokeWidth = `stroke-width="${shape.strokeWidth}"`;
+        const fill = shape.fillColor !== 'transparent' ? `fill="${shape.fillColor}"` : 'fill="none"';
+        const opacity = `fill-opacity="${shape.opacity}" stroke-opacity="${shape.opacity}"`; // Apply opacity to both fill and stroke
+
+
+        if (shape.type === "rect") {
+            // For rounded rectangles, use rx and ry attributes. Assuming uniform corner radius.
+            const rx = shape.cornerRadius;
+            const ry = shape.cornerRadius;
+            svgElement = `<rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" rx="${rx}" ry="${ry}" ${stroke} ${strokeWidth} ${fill} ${opacity}/>`;
+        } else if (shape.type === "circle") {
+            // For ellipses (stored as circle type), use cx, cy, rx, ry
+            svgElement = `<ellipse cx="${shape.centerX}" cy="${shape.centerY}" rx="${Math.abs(shape.radiusX)}" ry="${Math.abs(shape.radiusY)}" ${stroke} ${strokeWidth} ${fill} ${opacity}/>`;
+        } else if (shape.type === "pencil") {
+            // Convert points to SVG path data (d attribute)
+            if (shape.points.length < 1) {
+                return null; // Cannot export an empty pencil path
+            }
+            const pathData = shape.points.map((p, index) => {
+                if (index === 0) {
+                    return `M ${p.x} ${p.y}`;
+                } else {
+                    return `L ${p.x} ${p.y}`;
+                }
+            }).join(' ');
+
+            // Pencil strokes usually don't have a fill
+            const pencilFill = 'fill="none"';
+
+            svgElement = `<path d="${pathData}" ${stroke} ${strokeWidth} ${pencilFill} ${opacity}/>`;
+        }
+
+        return svgElement;
     }
 
 

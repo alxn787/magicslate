@@ -56,6 +56,10 @@ export function SideBar({ properties, setProperties, game }: SideBarProps) {
   const handleOpacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setProperties({ ...properties, opacity: parseFloat(e.target.value) });
   };
+  function exportSvg(){
+    console.log(game?.exportSelectedShapeAsSvg());
+    alert(game?.exportSelectedShapeAsSvg());
+  }
 
   return (
     <div 
@@ -155,23 +159,26 @@ export function SideBar({ properties, setProperties, game }: SideBarProps) {
           )}
 
           {/* Opacity slider */}
-          <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-medium">Opacity</h3>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={properties.opacity}
-                onChange={handleOpacityChange}
-                className="w-full"
-              />
-              <span className="text-sm">{Math.round(properties.opacity * 100)}%</span>
+             <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium">Opacity</h3>
+                    <div className="flex items-center gap-2">
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={properties.opacity}
+                        onChange={handleOpacityChange}
+                        className="w-full"
+                    />
+                    <span className="text-sm">{Math.round(properties.opacity * 100)}%</span>
+                </div>
             </div>
-          </div>
+            <div>
+                <button onClick={exportSvg} >Export SVG</button>
+            </div>
 
-          {/* Text options */}
+          {/* Text options */}   
           {activePanel === "text" && (
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
