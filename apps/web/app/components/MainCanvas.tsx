@@ -27,7 +27,6 @@ export default function MainCanvas({
     opacity: 1
   });
 
-  // Resize canvas properly to avoid zoom issue
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
