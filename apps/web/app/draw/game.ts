@@ -1310,12 +1310,10 @@ export class Game {
              this.textInput.style.transform = `scale(${this.scale})`;
              this.textInput.style.transformOrigin = 'top left'; // Ensure consistent scaling origin
 
-             // Add some padding to the input box for better visual appearance and hit area
              const inputPadding = 2;
              this.textInput.style.padding = `${inputPadding}px`;
              this.textInput.style.width = `${(metrics.width + 2 * inputPadding) * this.scale}px`;
              this.textInput.style.height = `${(actualHeight + 2 * inputPadding) * this.scale}px`;
-             // Adjust position slightly to account for padding
              this.textInput.style.left = `${canvasRect.left + (shape.x - offsetX) * this.scale - inputPadding * this.scale}px`;
              this.textInput.style.top = `${canvasRect.top + (shape.y - offsetY) * this.scale - inputPadding * this.scale}px`;
         }

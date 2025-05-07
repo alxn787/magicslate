@@ -27,6 +27,7 @@ export const authConfig = {
     callbacks: {
       async jwt({ token, account, profile }:any) {
         if (account && profile?.email) {
+          // console.log(profile.name);
          
           const backendToken = await axios.post(`${BACKEND_URL}/auth/google`, {
             email: profile.email  ,

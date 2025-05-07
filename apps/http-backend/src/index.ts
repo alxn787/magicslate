@@ -12,7 +12,6 @@ app.use(cors({
     methods: ["GET", "POST"],
     credentials: true
   }));
-  app.use(cors());
 
 declare global{
     namespace Express{
@@ -100,7 +99,7 @@ app.post('/auth/google', async (req: Request, res: Response) => {
         })
 
         if(!user){
-
+                    console.log(JWT_SECRET);
             user = await prisma.user.create({
                 data:{
                     email,
