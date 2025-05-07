@@ -129,18 +129,18 @@ function TopBar({
           onClick={() => setSelectedTool("circle")}
         />
         <IconButton
-          activated={selectedTool === "line"} // Added Line button
-          icon={<Minus className="text-white" />} // Using LineChart icon for line
+          activated={selectedTool === "line"}
+          icon={<Minus className="text-white" />} 
           onClick={() => setSelectedTool("line")}
         />
          <IconButton
-          activated={selectedTool === "arrow"} // Added Arrow button
-          icon={<ArrowRight className="text-white" />} // Using ArrowRight icon for arrow
+          activated={selectedTool === "arrow"} 
+          icon={<ArrowRight className="text-white" />} 
           onClick={() => setSelectedTool("arrow")}
         />
          <IconButton
-          activated={selectedTool === "text"} // Added Text button
-          icon={<LetterText className="text-white" />} // Using TextCursor icon for text
+          activated={selectedTool === "text"} 
+          icon={<LetterText className="text-white" />} 
           onClick={() => setSelectedTool("text")}
         />
         <IconButton
@@ -149,7 +149,7 @@ function TopBar({
           onClick={() => setSelectedTool("eraser")}
         />
         <IconButton
-          activated={false} // Clear slate button is not a tool selection
+          activated={false} 
           icon={<Trash className="text-white" />}
           onClick={() => game?.clearSlate()}
         />
