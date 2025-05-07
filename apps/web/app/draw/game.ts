@@ -1255,15 +1255,12 @@ export class Game {
      }
 
     private handleCanvasResize = () => {
-         // Recalculate and update text input position and size on canvas resize/zoom
          if (this.isEditingText && this.editingTextShape) {
-             // Re-get the canvas scale as it might have changed
              const dpr = window.devicePixelRatio || 1;
              const width = window.innerWidth;
              const height = window.innerHeight;
              const canvasWidth = this.canvas.width / dpr;
              const canvasHeight = this.canvas.height / dpr;
-
              this.updateTextInputPosition(this.editingTextShape);
          }
     }
@@ -1271,10 +1268,10 @@ export class Game {
 
     private updateTextInputPosition(shape: Extract<Shape, { type: 'text' }>) {
         if (this.textInput) {
-             this.ctx.save(); // Save context before changing font
+             this.ctx.save(); 
              this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
              const metrics = this.ctx.measureText(shape.text);
-             this.ctx.restore(); // Restore context
+             this.ctx.restore(); 
 
              const actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
 
