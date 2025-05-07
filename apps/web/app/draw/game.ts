@@ -1263,9 +1263,6 @@ export class Game {
              const height = window.innerHeight;
              const canvasWidth = this.canvas.width / dpr;
              const canvasHeight = this.canvas.height / dpr;
-             // Assuming scale is managed externally and applied via context transform
-             // If scale is managed internally, use this.scale directly.
-             // For now, let's rely on the internally managed this.scale.
 
              this.updateTextInputPosition(this.editingTextShape);
          }
