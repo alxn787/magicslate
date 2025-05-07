@@ -5,7 +5,7 @@ import { getExistingShapes } from "./http";
 type BaseShapeStyle = {
     strokeColor: string;
     strokeWidth: number;
-    fillColor: string; // Still relevant for text background or future filled shapes
+    fillColor: string; 
     opacity: number;
     id: string;
 }
@@ -39,15 +39,15 @@ type Shape = ({
     y1: number;
     x2: number;
     y2: number;
-    arrowheadSize: number; // Size of the arrowhead
-} & BaseShapeStyle) | ({ // Added Text Shape Type
+    arrowheadSize: number; 
+} & BaseShapeStyle) | ({ 
     type: "text";
     x: number;
     y: number;
     text: string;
     fontSize: number;
     fontFamily: string;
-    color: string; // Text color
+    color: string; 
     textAlign: CanvasTextAlign;
     textBaseline: CanvasTextBaseline;
 } & BaseShapeStyle);
@@ -86,14 +86,12 @@ export class Game {
     };
 
     private defaultCornerRadius: number = 10;
-    private defaultArrowheadSize: number = 15; // Default size for arrowheads
-    private defaultFontSize: number = 16; // Default font size for text
-    private defaultFontFamily: string = "sans-serif"; // Default font family for text
-    private defaultTextColor: string = "#1a1c2c"; // Default text color
+    private defaultArrowheadSize: number = 15; 
+    private defaultFontSize: number = 16; 
+    private defaultFontFamily: string = "sans-serif"; 
+    private defaultTextColor: string = "#1a1c2c"; 
 
     private drawingShapeId: string | null = null;
-
-    // State for text editing
     private isEditingText: boolean = false;
     private textInput: HTMLInputElement | null = null;
     private editingTextShape: (Extract<Shape, { type: 'text' }> & { index: number }) | null = null;
@@ -109,7 +107,6 @@ export class Game {
         this.init();
         this.initHandler();
         this.initMouseHandler();
-         // Add resize listener to update text input position on canvas resize/zoom
         window.addEventListener("resize", this.handleCanvasResize);
     }
 
@@ -118,8 +115,7 @@ export class Game {
         this.canvas.removeEventListener("mouseup", this.MouseUpHandler);
         this.canvas.removeEventListener("mousemove", this.MouseMoveHandler);
         this.canvas.removeEventListener("mouseout", this.MouseOutHandler);
-        window.removeEventListener("resize", this.handleCanvasResize); // Remove resize listener
-        // Clean up text input if it exists
+        window.removeEventListener("resize", this.handleCanvasResize);
         if (this.textInput && this.textInput.parentElement) {
             this.textInput.parentElement.removeChild(this.textInput);
         }
@@ -136,25 +132,19 @@ export class Game {
         this.drawingShapeId = null;
         this.canvas.style.cursor = 'default';
         this.ClearCanvas();
-        this.disableTextEditing(); // Disable text editing when tool changes
+        this.disableTextEditing(); 
     }
 
     setDrawingProperties(props: DrawingProperties): void {
         this.drawingProperties = props;
-         // If a text shape is selected, update its properties
         if (this.selectedShape && this.selectedShape.type === 'text') {
              const textShape = this.selectedShape as Extract<Shape, { type: 'text' }>;
-             textShape.color = props.strokeColor; // Assuming strokeColor controls text color
+             textShape.color = props.strokeColor; 
              textShape.opacity = props.opacity;
-             // Font size and family might be separate properties or derived from strokeWidth
-             // Use a reasonable scaling factor or a dedicated font size property in DrawingProperties
-             textShape.fontSize = props.strokeWidth * 2 > 8 ? props.strokeWidth * 2 : 8; // Example: scale font size with stroke width, minimum 8px
-             // textShape.fontFamily = ... // If you add font family to DrawingProperties
-
-             // Send update over socket
+             textShape.fontSize = props.strokeWidth * 2 > 8 ? props.strokeWidth * 2 : 8; 
              this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(textShape) }));
-             this.ClearCanvas(); // Redraw with updated text properties
-             this.updateTextInputPosition(textShape); // Update input position and size
+             this.ClearCanvas(); 
+             this.updateTextInputPosition(textShape);
         } else {
             this.ClearCanvas();
         }
@@ -200,7 +190,7 @@ export class Game {
         this.selectedShape = null;
         this.currentPoints = [];
         this.drawingShapeId = null;
-        this.disableTextEditing(); // Disable text editing on clear
+        this.disableTextEditing(); 
         this.ClearCanvas();
         this.selectedTool = "select";
     }
@@ -246,10 +236,9 @@ export class Game {
                     this.existingShapes[index] = updatedShape;
                     if (this.selectedShape && this.selectedShape.id === updatedShape.id) {
                         this.selectedShape = updatedShape;
-                         // If the updated shape is the one being edited, update the text input value and position
                          if (this.isEditingText && this.editingTextShape && this.editingTextShape.id === updatedShape.id && updatedShape.type === 'text') {
                             this.textInput!.value = updatedShape.text;
-                            this.editingTextShape.text = updatedShape.text; // Also update the local editing shape object
+                            this.editingTextShape.text = updatedShape.text; 
                             this.updateTextInputPosition(updatedShape);
                          }
                     }
@@ -261,7 +250,7 @@ export class Game {
                      this.existingShapes = this.existingShapes.filter(shape => shape.id !== shapeToErase.id);
                       if (this.selectedShape && this.selectedShape.id === shapeToErase.id) {
                          this.selectedShape = null;
-                         this.disableTextEditing(); // Disable text editing if the edited shape is erased
+                         this.disableTextEditing(); 
                      }
                      this.ClearCanvas();
                  }
@@ -337,7 +326,6 @@ export class Game {
                 this.ctx.fill();
                 this.ctx.restore();
             } else if (shape.type === "text") {
-                 // Only draw text on canvas if not currently editing it
                  if (!(this.isEditingText && this.editingTextShape && this.editingTextShape.id === shape.id)) {
                      this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
                      this.ctx.fillStyle = shape.color;
@@ -384,11 +372,10 @@ export class Game {
              const padding = shape.strokeWidth + 5;
              return { x: x - padding, y: y - padding, width: width + 2 * padding, height: height + 2 * padding };
         } else if (shape.type === "text") {
-             // Temporarily set font to get accurate metrics
              this.ctx.save();
              this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
              const metrics = this.ctx.measureText(shape.text);
-             this.ctx.restore(); // Restore context
+             this.ctx.restore(); 
 
              const actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
              let x = shape.x;
@@ -1147,7 +1134,6 @@ export class Game {
         }
     }
 
-    // --- Text Editing Methods ---
     private enableTextEditing(shape: Extract<Shape, { type: 'text' }>, index: number) {
         if (this.isEditingText) {
             this.disableTextEditing();
@@ -1169,13 +1155,12 @@ export class Game {
         this.textInput.style.outline = 'none';
         this.textInput.style.padding = '0';
         this.textInput.style.margin = '0';
-        this.textInput.style.lineHeight = 'normal'; // Prevent extra spacing
-        this.textInput.style.boxSizing = 'content-box'; // Ensure padding doesn't affect size
-        this.textInput.style.zIndex = '100'; // Ensure the input is on top
-        this.textInput.style.whiteSpace = 'pre'; // Preserve whitespace for accurate measurement
+        this.textInput.style.lineHeight = 'normal'; 
+        this.textInput.style.boxSizing = 'content-box'; 
+        this.textInput.style.zIndex = '100'; 
+        this.textInput.style.whiteSpace = 'pre'; 
 
-        // Set initial position and size based on text metrics and scale
-        // Append before positioning to ensure offsetWidth/Height are available if needed (though using measureText)
+
         this.canvas.parentElement?.appendChild(this.textInput);
         this.updateTextInputPosition(shape);
 
