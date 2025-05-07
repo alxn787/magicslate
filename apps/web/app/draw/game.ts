@@ -547,7 +547,6 @@ export class Game {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-
     findShapeAt(x: number, y: number): Shape | null {
         for (let i = this.existingShapes.length - 1; i >= 0; i--) {
             const shape = this.existingShapes[i];
@@ -566,7 +565,6 @@ export class Game {
         }
         return null;
     }
-
 
     moveSelectedShape(dx: number, dy: number) {
         if (!this.selectedShape) return;
@@ -597,7 +595,6 @@ export class Game {
         }
 
         this.selectedShape = shapeToMove;
-
         this.socket.send(JSON.stringify({ type: "updateShape", roomId: this.roomId, shape: JSON.stringify(this.selectedShape) }));
         this.ClearCanvas();
     }
@@ -609,23 +606,18 @@ export class Game {
 
         const shapeToResize = this.existingShapes.find(s => s.id === this.selectedShape!.id);
          if (!shapeToResize) return;
-
         const dx = currentX - this.startX;
         const dy = currentY - this.startY;
 
-
         if (shapeToResize.type === "rect") {
-             const initialRectState = this.initialShapeState as Extract<Shape, { type: 'rect' }>;
-
+            const initialRectState = this.initialShapeState as Extract<Shape, { type: 'rect' }>;
             const initialBoundingBox = this.getShapeBoundingBox(initialRectState);
             const { x: initialX, y: initialY, width: initialWidth, height: initialHeight } = initialBoundingBox;
-
             let newX = initialX;
             let newY = initialY;
             let newWidth = initialWidth;
             let newHeight = initialHeight;
             let newCornerRadius = initialRectState.cornerRadius;
-
 
             switch (this.resizeHandle) {
                 case 'topLeft':
@@ -650,23 +642,22 @@ export class Game {
                     break;
             }
 
-             const minSize = 5;
-             if (Math.abs(newWidth) < minSize && newWidth !== 0) {
+            const minSize = 5;
+            if (Math.abs(newWidth) < minSize && newWidth !== 0) {
                  newWidth = newWidth < 0 ? (newWidth / Math.abs(newWidth)) * minSize : minSize;
-             } else if (newWidth === 0) {
+            } else if (newWidth === 0) {
                  newWidth = minSize;
-             }
-             if (Math.abs(newHeight) < minSize && newHeight !== 0) {
+            }
+            if (Math.abs(newHeight) < minSize && newHeight !== 0) {
                  newHeight = newHeight < 0 ? (newHeight / Math.abs(newHeight)) * minSize : minSize;
-             } else if (newHeight === 0) {
+            } else if (newHeight === 0) {
                  newHeight = minSize;
-             }
+            }
 
-             const widthScale = initialWidth !== 0 ? Math.abs(newWidth) / Math.abs(initialWidth) : 1;
-             const heightScale = initialHeight !== 0 ? Math.abs(newHeight) / Math.abs(initialHeight) : 1;
-             const scale = Math.min(widthScale, heightScale);
-             newCornerRadius = initialRectState.cornerRadius * scale;
-
+            const widthScale = initialWidth !== 0 ? Math.abs(newWidth) / Math.abs(initialWidth) : 1;
+            const heightScale = initialHeight !== 0 ? Math.abs(newHeight) / Math.abs(initialHeight) : 1;
+            const scale = Math.min(widthScale, heightScale);
+            newCornerRadius = initialRectState.cornerRadius * scale;
 
             shapeToResize.x = newX;
             shapeToResize.y = newY;
@@ -674,9 +665,8 @@ export class Game {
             shapeToResize.height = newHeight;
             shapeToResize.cornerRadius = newCornerRadius;
 
-        } else if (shapeToResize.type === "circle") {
-             const initialCircleState = this.initialShapeState as Extract<Shape, { type: 'circle' }>;
-
+        }   else if (shapeToResize.type === "circle") {
+            const initialCircleState = this.initialShapeState as Extract<Shape, { type: 'circle' }>;
             const initialBoundingBox = this.getShapeBoundingBox(initialCircleState);
             const { x: initialX, y: initialY, width: initialWidth, height: initialHeight } = initialBoundingBox;
 
@@ -700,21 +690,21 @@ export class Game {
                      anchorX = initialX;
                      anchorY = initialY;
                      break;
-             }
+            }
 
-             const finalX = anchorX;
-             const finalY = anchorY;
-             const currentDraggedX = this.startX + dx;
-             const currentDraggedY = this.startY + dy;
+            const finalX = anchorX;
+            const finalY = anchorY;
+            const currentDraggedX = this.startX + dx;
+            const currentDraggedY = this.startY + dy;
 
-             const newBoundingBoxX = Math.min(finalX, currentDraggedX);
-             const newBoundingBoxY = Math.min(finalY, currentDraggedY);
-             const newBoundingBoxWidth = Math.abs(finalX - currentDraggedX);
-             const newBoundingBoxHeight = Math.abs(finalY - currentDraggedY);
+            const newBoundingBoxX = Math.min(finalX, currentDraggedX);
+            const newBoundingBoxY = Math.min(finalY, currentDraggedY);
+            const newBoundingBoxWidth = Math.abs(finalX - currentDraggedX);
+            const newBoundingBoxHeight = Math.abs(finalY - currentDraggedY);
 
-             const minSize = 5;
-             const finalWidth = Math.max(minSize, newBoundingBoxWidth);
-             const finalHeight = Math.max(minSize, newBoundingBoxHeight);
+            const minSize = 5;
+            const finalWidth = Math.max(minSize, newBoundingBoxWidth);
+            const finalHeight = Math.max(minSize, newBoundingBoxHeight);
 
             shapeToResize.centerX = newBoundingBoxX + finalWidth / 2;
             shapeToResize.centerY = newBoundingBoxY + finalHeight / 2;
@@ -742,17 +732,13 @@ export class Game {
         this.startY = e.clientY;
 
         if (this.selectedTool === "select") {
-             // Disable text editing when clicking anywhere in select mode
              this.disableTextEditing();
-
             const shape = this.findShapeAt(e.clientX, e.clientY);
-
             if (this.isResizing) {
                  return;
             }
 
             if (shape) {
-                 // If clicking on a text shape, enable text editing
                 if (shape.type === 'text') {
                     this.enableTextEditing(shape, this.existingShapes.indexOf(shape));
                     this.selectedShape = shape;
@@ -1235,12 +1221,10 @@ export class Game {
 
     private handleTextBlur = () => {
         if (this.isEditingText && this.editingTextShape) {
-             // If the text is empty, remove the shape
              if (this.editingTextShape.text.trim() === '') {
                  this.existingShapes.splice(this.editingTextShape.index, 1);
                  this.socket.send(JSON.stringify({ type: "eraseShape", roomId: this.roomId, shape: JSON.stringify(this.editingTextShape) }));
              } else {
-                 // Send the final shape data if text is not empty
                  this.socket.send(JSON.stringify({ type: "chat", message: JSON.stringify(this.editingTextShape), roomId: this.roomId }));
              }
         }
@@ -1289,20 +1273,13 @@ export class Game {
                 offsetY = actualHeight;
             }
 
-             // Apply canvas offset and scale to the input position
              const canvasRect = this.canvas.getBoundingClientRect();
              this.textInput.style.left = `${canvasRect.left + (shape.x - offsetX) * this.scale}px`;
              this.textInput.style.top = `${canvasRect.top + (shape.y - offsetY) * this.scale}px`;
-
-             // Apply scale to the input element's size
-             // Set input width to match the measured text width
              this.textInput.style.width = `${metrics.width * this.scale}px`;
-             // Set input height to match the measured text height
              this.textInput.style.height = `${actualHeight * this.scale}px`;
-
-             // Ensure the input element's transform scale matches the canvas scale
              this.textInput.style.transform = `scale(${this.scale})`;
-             this.textInput.style.transformOrigin = 'top left'; // Ensure consistent scaling origin
+             this.textInput.style.transformOrigin = 'top left';
 
              const inputPadding = 2;
              this.textInput.style.padding = `${inputPadding}px`;
